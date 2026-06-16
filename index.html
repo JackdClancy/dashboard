@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Home</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Fira Sans', 'sans-serif'],
+            mono: ['Fira Code', 'monospace'],
+          },
+          colors: {
+            primary: {
+              50:  '#EFF6FF',
+              100: '#DBEAFE',
+              500: '#3B82F6',
+              600: '#2563EB',
+              700: '#1D4ED8',
+              800: '#1E40AF',
+              900: '#1E3A8A',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; }
+    }
+
+    body { font-family: 'Fira Sans', sans-serif; }
+
+    #sidebar { transition: width 280ms cubic-bezier(.4,0,.2,1); }
+    .sidebar-expanded  { width: 240px; }
+    .sidebar-collapsed { width: 64px; }
+
+    .nav-label { transition: opacity 200ms ease, width 200ms ease; white-space: nowrap; overflow: hidden; }
+    .sidebar-collapsed .nav-label { opacity: 0; width: 0; }
+
+    #mainContent { transition: margin-left 280ms cubic-bezier(.4,0,.2,1); }
+
+    .kpi-card { transition: transform 180ms ease, box-shadow 180ms ease; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -4px rgba(30,64,175,.12); }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+  <!-- ─── Sidebar ─────────────────────────────────────────────── -->
+  <aside id="sidebar" class="sidebar-expanded fixed top-0 left-0 h-full bg-white border-r border-slate-200 z-30 flex flex-col select-none">
+
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-4 py-5 border-b border-slate-100">
+      <div class="w-8 h-8 rounded-lg bg-primary-800 flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      </div>
+      <span class="nav-label font-semibold text-slate-800 tracking-tight">Analytics Pro</span>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto" aria-label="Main navigation">
+
+      <a href="index.html"
+         class="group flex items-center gap-3 px-3 py-2.5 rounded-lg text-primary-800 font-medium bg-primary-50 border-l-2 border-primary-800 cursor-pointer"
+         aria-current="page">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+        <span class="nav-label text-sm">Home</span>
+      </a>
+
+      <a href="analytics.html"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+        <span class="nav-label text-sm">Analytics</span>
+      </a>
+
+      <a href="users.html"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span class="nav-label text-sm">Users</span>
+      </a>
+
+      <a href="reports.html"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <span class="nav-label text-sm">Reports</span>
+      </a>
+
+      <a href="settings.html"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span class="nav-label text-sm">Settings</span>
+      </a>
+
+    </nav>
+
+    <!-- Collapse button -->
+    <div class="border-t border-slate-100 p-3">
+      <button id="sidebarToggle" onclick="toggleSidebar()"
+              class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors duration-150 cursor-pointer"
+              aria-label="Collapse sidebar">
+        <svg id="collapseIcon" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+        </svg>
+        <span class="nav-label text-xs">Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ─── Main ─────────────────────────────────────────────────── -->
+  <div id="mainContent" class="ml-60 min-h-screen flex flex-col">
+
+    <!-- Topbar -->
+    <header class="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between gap-4">
+
+      <div class="relative flex-1 max-w-sm">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input type="search" placeholder="Search..." aria-label="Search dashboard"
+               class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200" />
+      </div>
+
+      <div class="flex items-center gap-2 md:gap-3">
+
+        <!-- Date badge -->
+        <div class="hidden md:flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          Jun 1 – Jun 16, 2026
+        </div>
+
+        <!-- Notifications -->
+        <button class="relative p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors duration-150 cursor-pointer" aria-label="Notifications (3 unread)">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full" aria-label="3 unread notifications"></span>
+        </button>
+
+        <!-- User -->
+        <button class="flex items-center gap-2 cursor-pointer group" aria-label="User menu">
+          <div class="w-8 h-8 rounded-full bg-primary-800 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">JC</div>
+          <span class="hidden md:block text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors duration-150">Jack C.</span>
+        </button>
+
+      </div>
+    </header>
+
+    <!-- Page body -->
+    <main class="flex-1 px-4 md:px-6 lg:px-8 py-6 space-y-6">
+
+      <!-- Title -->
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Overview</h1>
+        <p class="text-sm text-slate-500 mt-0.5">Welcome back, Jack. Here's what's happening today.</p>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <div class="kpi-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div class="flex items-start justify-between mb-3">
+            <div class="p-2 bg-blue-50 rounded-lg">
+              <svg class="w-4 h-4 text-primary-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">+12.5%</span>
+          </div>
+          <p class="text-2xl font-semibold font-mono text-slate-900">$84,320</p>
+          <p class="text-xs text-slate-500 mt-1">Total Revenue</p>
+        </div>
+
+        <div class="kpi-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div class="flex items-start justify-between mb-3">
+            <div class="p-2 bg-violet-50 rounded-lg">
+              <svg class="w-4 h-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">+8.1%</span>
+          </div>
+          <p class="text-2xl font-semibold font-mono text-slate-900">12,847</p>
+          <p class="text-xs text-slate-500 mt-1">Active Users</p>
+        </div>
+
+        <div class="kpi-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div class="flex items-start justify-between mb-3">
+            <div class="p-2 bg-amber-50 rounded-lg">
+              <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+            <span class="text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full">-1.2%</span>
+          </div>
+          <p class="text-2xl font-semibold font-mono text-slate-900">3.68%</p>
+          <p class="text-xs text-slate-500 mt-1">Conversion Rate</p>
+        </div>
+
+        <div class="kpi-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div class="flex items-start justify-between mb-3">
+            <div class="p-2 bg-emerald-50 rounded-lg">
+              <svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+            </div>
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">+4.3%</span>
+          </div>
+          <p class="text-2xl font-semibold font-mono text-slate-900">$127.40</p>
+          <p class="text-xs text-slate-500 mt-1">Avg. Order Value</p>
+        </div>
+
+      </div>
+
+      <!-- Charts row -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        <!-- Revenue trend -->
+        <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-800">Revenue Trend</h2>
+              <p class="text-xs text-slate-400 mt-0.5">Last 12 months</p>
+            </div>
+            <select aria-label="Time range" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 cursor-pointer">
+              <option>12 Months</option>
+              <option>6 Months</option>
+              <option>30 Days</option>
+            </select>
+          </div>
+          <div class="relative h-52">
+            <canvas id="revenueChart" role="img" aria-label="Revenue trend line chart showing growth over 12 months"></canvas>
+          </div>
+        </div>
+
+        <!-- Traffic donut -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div class="mb-4">
+            <h2 class="text-sm font-semibold text-slate-800">Traffic Sources</h2>
+            <p class="text-xs text-slate-400 mt-0.5">This month</p>
+          </div>
+          <div class="relative h-36">
+            <canvas id="trafficChart" role="img" aria-label="Traffic sources donut chart"></canvas>
+          </div>
+          <div class="mt-4 space-y-2" aria-label="Traffic source breakdown">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-primary-800 flex-shrink-0" aria-hidden="true"></span>
+                <span class="text-slate-600">Organic</span>
+              </div>
+              <span class="font-mono font-medium text-slate-800">42%</span>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-400 flex-shrink-0" aria-hidden="true"></span>
+                <span class="text-slate-600">Direct</span>
+              </div>
+              <span class="font-mono font-medium text-slate-800">28%</span>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0" aria-hidden="true"></span>
+                <span class="text-slate-600">Social</span>
+              </div>
+              <span class="font-mono font-medium text-slate-800">18%</span>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-300 flex-shrink-0" aria-hidden="true"></span>
+                <span class="text-slate-600">Referral</span>
+              </div>
+              <span class="font-mono font-medium text-slate-800">12%</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom row -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        <!-- Category bar -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div class="mb-4">
+            <h2 class="text-sm font-semibold text-slate-800">Sales by Category</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Top performers</p>
+          </div>
+          <div class="relative h-48">
+            <canvas id="categoryChart" role="img" aria-label="Horizontal bar chart of sales by category"></canvas>
+          </div>
+        </div>
+
+        <!-- Recent transactions table -->
+        <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-800">Recent Transactions</h2>
+            <a href="reports.html" class="text-xs text-primary-800 hover:text-primary-600 font-medium cursor-pointer transition-colors duration-150">View all</a>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs" role="table" aria-label="Recent transactions">
+              <thead>
+                <tr class="bg-slate-50">
+                  <th scope="col" class="text-left px-4 py-2.5 font-medium text-slate-500 uppercase tracking-wider text-[10px]">Customer</th>
+                  <th scope="col" class="text-left px-4 py-2.5 font-medium text-slate-500 uppercase tracking-wider text-[10px]">Product</th>
+                  <th scope="col" class="text-left px-4 py-2.5 font-medium text-slate-500 uppercase tracking-wider text-[10px]">Amount</th>
+                  <th scope="col" class="text-left px-4 py-2.5 font-medium text-slate-500 uppercase tracking-wider text-[10px]">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-50">
+                <tr class="hover:bg-slate-50 transition-colors duration-150">
+                  <td class="px-4 py-3 font-medium text-slate-800">Sarah M.</td>
+                  <td class="px-4 py-3 text-slate-500">Pro Plan · Annual</td>
+                  <td class="px-4 py-3 font-mono font-medium text-slate-800">$299.00</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-medium">Paid</span></td>
+                </tr>
+                <tr class="hover:bg-slate-50 transition-colors duration-150">
+                  <td class="px-4 py-3 font-medium text-slate-800">Tom K.</td>
+                  <td class="px-4 py-3 text-slate-500">Starter · Monthly</td>
+                  <td class="px-4 py-3 font-mono font-medium text-slate-800">$29.00</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-medium">Paid</span></td>
+                </tr>
+                <tr class="hover:bg-slate-50 transition-colors duration-150">
+                  <td class="px-4 py-3 font-medium text-slate-800">Priya R.</td>
+                  <td class="px-4 py-3 text-slate-500">Enterprise</td>
+                  <td class="px-4 py-3 font-mono font-medium text-slate-800">$899.00</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full font-medium">Pending</span></td>
+                </tr>
+                <tr class="hover:bg-slate-50 transition-colors duration-150">
+                  <td class="px-4 py-3 font-medium text-slate-800">Alex D.</td>
+                  <td class="px-4 py-3 text-slate-500">Pro Plan · Monthly</td>
+                  <td class="px-4 py-3 font-mono font-medium text-slate-800">$79.00</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-red-50 text-red-600 rounded-full font-medium">Failed</span></td>
+                </tr>
+                <tr class="hover:bg-slate-50 transition-colors duration-150">
+                  <td class="px-4 py-3 font-medium text-slate-800">Maria L.</td>
+                  <td class="px-4 py-3 text-slate-500">Pro Plan · Annual</td>
+                  <td class="px-4 py-3 font-mono font-medium text-slate-800">$299.00</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-medium">Paid</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quick Access -->
+      <div>
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">Quick Access</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+          <a href="analytics.html" class="group bg-white border border-slate-200 rounded-xl p-4 hover:border-primary-500 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div class="w-9 h-9 rounded-lg bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center mb-3 transition-colors duration-200">
+              <svg class="w-5 h-5 text-primary-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <p class="text-sm font-medium text-slate-800">Analytics</p>
+            <p class="text-xs text-slate-400 mt-0.5">Deep dive metrics</p>
+          </a>
+
+          <a href="users.html" class="group bg-white border border-slate-200 rounded-xl p-4 hover:border-primary-500 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div class="w-9 h-9 rounded-lg bg-violet-50 group-hover:bg-violet-100 flex items-center justify-center mb-3 transition-colors duration-200">
+              <svg class="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <p class="text-sm font-medium text-slate-800">Users</p>
+            <p class="text-xs text-slate-400 mt-0.5">Manage accounts</p>
+          </a>
+
+          <a href="reports.html" class="group bg-white border border-slate-200 rounded-xl p-4 hover:border-primary-500 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div class="w-9 h-9 rounded-lg bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center mb-3 transition-colors duration-200">
+              <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <p class="text-sm font-medium text-slate-800">Reports</p>
+            <p class="text-xs text-slate-400 mt-0.5">Export & schedule</p>
+          </a>
+
+          <a href="settings.html" class="group bg-white border border-slate-200 rounded-xl p-4 hover:border-primary-500 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div class="w-9 h-9 rounded-lg bg-slate-100 group-hover:bg-slate-200 flex items-center justify-center mb-3 transition-colors duration-200">
+              <svg class="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <p class="text-sm font-medium text-slate-800">Settings</p>
+            <p class="text-xs text-slate-400 mt-0.5">Configure workspace</p>
+          </a>
+
+        </div>
+      </div>
+
+    </main>
+
+    <footer class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+      <p class="text-xs text-slate-400">© 2026 Analytics Pro</p>
+      <p class="text-xs text-slate-400 font-mono">v1.0.0</p>
+    </footer>
+  </div>
+
+  <!-- ─── Scripts ──────────────────────────────────────────────── -->
+  <script>
+    let expanded = true;
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const main    = document.getElementById('mainContent');
+      const icon    = document.getElementById('collapseIcon');
+
+      expanded = !expanded;
+
+      sidebar.classList.toggle('sidebar-expanded',  expanded);
+      sidebar.classList.toggle('sidebar-collapsed', !expanded);
+      main.classList.toggle('ml-60', expanded);
+      main.classList.toggle('ml-16', !expanded);
+
+      icon.innerHTML = expanded
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />';
+
+      document.getElementById('sidebarToggle').setAttribute('aria-label', expanded ? 'Collapse sidebar' : 'Expand sidebar');
+    }
+
+    // ── Revenue line chart ──────────────────────────────────────
+    new Chart(document.getElementById('revenueChart'), {
+      type: 'line',
+      data: {
+        labels: ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'],
+        datasets: [{
+          label: 'Revenue',
+          data: [42000,47500,51200,49800,63400,71200,58900,65100,72400,69800,78200,84320],
+          borderColor: '#1E40AF',
+          backgroundColor: 'rgba(30,64,175,0.06)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+          pointBackgroundColor: '#1E40AF',
+          pointHoverRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#94a3b8',
+            bodyColor: '#f8fafc',
+            padding: 10,
+            callbacks: { label: c => ` $${c.raw.toLocaleString()}` }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#94a3b8', font: { size: 10, family: 'Fira Sans' } }
+          },
+          y: {
+            grid: { color: 'rgba(148,163,184,0.1)' },
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 10, family: 'Fira Code' },
+              callback: v => '$' + (v/1000).toFixed(0) + 'k'
+            }
+          }
+        }
+      }
+    });
+
+    // ── Traffic donut ───────────────────────────────────────────
+    new Chart(document.getElementById('trafficChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Organic','Direct','Social','Referral'],
+        datasets: [{
+          data: [42,28,18,12],
+          backgroundColor: ['#1E40AF','#60A5FA','#F59E0B','#CBD5E1'],
+          borderWidth: 0,
+          hoverOffset: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '72%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#94a3b8',
+            bodyColor: '#f8fafc',
+            padding: 10,
+            callbacks: { label: c => ` ${c.label}: ${c.raw}%` }
+          }
+        }
+      }
+    });
+
+    // ── Category horizontal bar ─────────────────────────────────
+    new Chart(document.getElementById('categoryChart'), {
+      type: 'bar',
+      data: {
+        labels: ['SaaS','Services','Add-ons','Support','Other'],
+        datasets: [{
+          label: 'Sales',
+          data: [38400,21600,12800,7400,4120],
+          backgroundColor: ['#1E40AF','#3B82F6','#60A5FA','#93C5FD','#BFDBFE'],
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#94a3b8',
+            bodyColor: '#f8fafc',
+            padding: 10,
+            callbacks: { label: c => ` $${c.raw.toLocaleString()}` }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(148,163,184,0.1)' },
+            ticks: { color: '#94a3b8', font: { size: 9, family: 'Fira Code' }, callback: v => '$'+(v/1000).toFixed(0)+'k' }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: '#64748b', font: { size: 10, family: 'Fira Sans' } }
+          }
+        }
+      }
+    });
+  </script>
+
+</body>
+</html>
