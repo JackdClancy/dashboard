@@ -156,7 +156,18 @@
   }
 
   // Events
-  document.addEventListener('change', e=>{ if(e.target && e.target.name==='range'){ renderOverview(); renderCategories(); } });
+  function syncRangeToggles(value){
+    document.querySelectorAll('input[name=range]').forEach(r => { r.checked = (r.value === value); });
+  }
+
+  document.addEventListener('change', e=>{
+    if(e.target && e.target.name==='range'){
+      syncRangeToggles(e.target.value);
+      renderOverview();
+      renderCategories();
+    }
+  });
+  syncRangeToggles('week');
   document.getElementById('addCategoryForm').addEventListener('submit', e=>{
     e.preventDefault(); const name = document.getElementById('newCategoryName').value.trim();
     if(!name) return; state.categories.push(name); save(); render(); document.getElementById('newCategoryName').value='';
