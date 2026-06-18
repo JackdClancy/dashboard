@@ -62,11 +62,11 @@
         id: i,
         date: t.date,
         amount: Math.abs(t.amount),
-        category: t.merchant?.name || 'Uncategorized',
+        category: t.merchant?.name || t.description || 'Uncategorized',
         type: t.amount > 0 ? 'credit' : 'debit'
       }));
 
-      state.transactions = [...mapped, ...sampleTx];
+      state.transactions = mapped;
       save();
       render();
       saveAkahuCreds(appId, userToken);
