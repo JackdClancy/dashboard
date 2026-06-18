@@ -26,13 +26,16 @@
     if(raw) return JSON.parse(raw);
     return {
       transactions: sampleTx,
-      categories: ['Rent','Groceries','Transport','Entertainment'],
       savingsGoal:5000,
       savingsCurrent:1200
     };
   }
 
   function save(){ localStorage.setItem('finances_v1',JSON.stringify(state)); }
+
+  // Fixed set of spending categories. "Other" always catches anything that
+  // doesn't match a keyword below, so every transaction lands somewhere.
+  const CATEGORIES = ['Rent','Groceries','Transport','Entertainment','Alcohol','Subscriptions','Food','Other'];
 
   // Auto-categorization: matches a transaction's merchant/description text
   // against keywords for each of the fixed spending categories.
@@ -128,15 +131,15 @@
     if(range==='week') cutoff.setDate(now.getDate()-7); else cutoff.setMonth(now.getMonth()-1);
 
     const totals = {};
-    state.categories.forEach(c=>totals[c]=0);
+    CATEGORIES.forEach(c=>totals[c]=0);
     state.transactions.forEach(t=>{
       if(t.type!=='debit') return;
       if(new Date(t.date) <= cutoff) return;
       const bucket = categorize(t.category);
-      if(bucket && totals.hasOwnProperty(bucket)) totals[bucket] += t.amount;
+      totals[bucket] += t.amount;
     });
     const container = document.getElementById('categoryList'); container.innerHTML='';
-    state.categories.forEach(c=>{
+    CATEGORIES.forEach(c=>{
       const row = document.createElement('div'); row.className='category';
       const name = document.createElement('div'); name.textContent = c;
       const value = document.createElement('div'); value.textContent = '$'+(totals[c]||0).toFixed(2);
@@ -171,10 +174,6 @@
     }
   });
   syncRangeToggles('week');
-  document.getElementById('addCategoryForm').addEventListener('submit', e=>{
-    e.preventDefault(); const name = document.getElementById('newCategoryName').value.trim();
-    if(!name) return; state.categories.push(name); save(); render(); document.getElementById('newCategoryName').value='';
-  });
   document.getElementById('savingsGoal').addEventListener('change', e=>{ state.savingsGoal=Number(e.target.value)||0; save(); renderSavings(); });
   document.getElementById('savingsCurrent').addEventListener('change', e=>{ state.savingsCurrent=Number(e.target.value)||0; save(); renderSavings(); });
   

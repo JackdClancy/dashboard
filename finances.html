@@ -157,12 +157,13 @@
         <p class="text-sm text-white/45 mt-0.5">Spending, savings, and bank connection.</p>
       </div>
 
+      <div class="toggle mb-5">
+        <label><input type="radio" name="range" value="week" checked> Weekly</label>
+        <label><input type="radio" name="range" value="month"> Monthly</label>
+      </div>
+
       <section id="overview" class="card">
-        <h2>Weekly / Monthly Overview</h2>
-        <div class="toggle">
-          <label><input type="radio" name="range" value="week" checked> Weekly</label>
-          <label><input type="radio" name="range" value="month"> Monthly</label>
-        </div>
+        <h2>Overview</h2>
         <div id="summary">
           <div>Total spent: <span id="totalSpent">$0.00</span></div>
           <div>Income: <span id="income">$0.00</span></div>
@@ -172,15 +173,7 @@
 
       <section id="categories" class="card">
         <h2>Categories</h2>
-        <div class="toggle">
-          <label><input type="radio" name="range" value="week"> Weekly</label>
-          <label><input type="radio" name="range" value="month"> Monthly</label>
-        </div>
         <div id="categoryList"></div>
-        <form id="addCategoryForm">
-          <input id="newCategoryName" placeholder="New category (e.g. Rent)">
-          <button>Add</button>
-        </form>
       </section>
 
       <section id="savings" class="card">
