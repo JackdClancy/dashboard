@@ -1,0 +1,135 @@
+:root {
+  --accent: #0A84FF;
+  --accent-light: #409CFF;
+}
+
+.card {
+  background: rgba(255,255,255,0.055);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 24px;
+  padding: 20px;
+  margin: 0 0 20px 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.10);
+  color: #fff;
+}
+
+.card h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  margin: 0 0 14px 0;
+  letter-spacing: 0.01em;
+}
+
+.card p { color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+.card p strong { color: rgba(255,255,255,0.85); }
+
+/* Weekly / Monthly toggle */
+.toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+.toggle label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; color: rgba(255,255,255,0.55);
+  padding: 6px 14px; border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer; transition: all 150ms ease;
+}
+.toggle input { accent-color: var(--accent); }
+.toggle label:has(input:checked) {
+  background: rgba(10,132,255,0.15);
+  border-color: rgba(10,132,255,0.35);
+  color: #fff;
+}
+
+/* Overview summary + transactions */
+#summary {
+  display: flex; gap: 28px; margin-bottom: 14px;
+  font-size: 0.85rem; color: rgba(255,255,255,0.55);
+}
+#summary span {
+  color: #fff; font-weight: 600;
+  font-family: 'Fira Code', monospace;
+}
+
+#txList { max-height: 220px; overflow-y: auto; }
+.tx {
+  padding: 10px 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.7);
+}
+.tx:last-child { border-bottom: none; }
+
+/* Categories */
+.category { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; gap: 14px; }
+.category > div:first-child { font-size: 0.85rem; color: rgba(255,255,255,0.75); min-width: 100px; }
+.bar { height: 10px; background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; flex: 1; }
+.bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-light), var(--accent)); border-radius: 6px; }
+.category > div:last-child { font-size: 0.8rem; font-family: 'Fira Code', monospace; color: rgba(255,255,255,0.55); min-width: 70px; text-align: right; }
+
+/* Savings goal */
+#savings input[type="number"] { width: 100px; }
+.progress { height: 18px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; margin-top: 10px; }
+#savingsBar { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); box-shadow: 0 0 12px rgba(10,132,255,0.5); transition: width 400ms ease; }
+#savingsText { margin-top: 8px; font-size: 0.8rem; color: rgba(255,255,255,0.55); }
+
+/* Akahu form */
+#akahuForm {
+  background: rgba(255,255,255,0.04);
+  padding: 16px; border-radius: 16px; margin-top: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+#akahuForm div { margin-bottom: 10px; }
+#akahuForm label { font-weight: 500; font-size: 0.8rem; color: rgba(255,255,255,0.55); }
+#akahuForm input { width: 100%; box-sizing: border-box; }
+#akahuStatus {
+  padding: 10px 12px; border-radius: 12px; margin-top: 8px;
+  background: rgba(10,132,255,0.08);
+  border-left: 3px solid var(--accent);
+  font-size: 0.8rem; color: rgba(255,255,255,0.7);
+}
+
+/* Generic form controls */
+ol { margin: 8px 0; margin-left: 20px; color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+ol li { margin-bottom: 4px; }
+ol strong { color: rgba(255,255,255,0.85); }
+
+a { color: var(--accent-light); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+form input,
+input[type="text"],
+input[type="password"],
+input[type="number"] {
+  padding: 8px 12px;
+  margin-right: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: 'Fira Sans', sans-serif;
+}
+input::placeholder { color: rgba(255,255,255,0.3); }
+input:focus {
+  outline: none;
+  border-color: rgba(10,132,255,0.5);
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.15);
+}
+
+button {
+  padding: 8px 16px;
+  background: linear-gradient(180deg, var(--accent-light), var(--accent));
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: 'Fira Sans', sans-serif;
+  box-shadow: 0 4px 16px rgba(10,132,255,0.35);
+  transition: opacity 150ms ease;
+}
+button:hover { opacity: 0.88; }
