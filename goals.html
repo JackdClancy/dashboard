@@ -21,14 +21,14 @@
           },
           colors: {
             primary: {
-              50:  '#EFF6FF',
-              100: '#DBEAFE',
-              400: '#60A5FA',
-              500: '#3B82F6',
-              600: '#2563EB',
-              700: '#1D4ED8',
-              800: '#1E40AF',
-              900: '#1E3A8A',
+              50:  '#EAF4FF',
+              100: '#D2E9FF',
+              400: '#409CFF',
+              500: '#0A84FF',
+              600: '#0066CC',
+              700: '#0052A3',
+              800: '#003D7A',
+              900: '#002952',
             }
           }
         }
@@ -40,7 +40,7 @@
     @media (prefers-reduced-motion: reduce) {
       * { transition: none !important; animation: none !important; }
     }
-    body { font-family: 'Fira Sans', sans-serif; }
+    body { font-family: 'Fira Sans', sans-serif; background: #09090b; }
     #sidebar { transition: width 280ms cubic-bezier(.4,0,.2,1); }
     .sidebar-expanded  { width: 240px; }
     .sidebar-collapsed { width: 64px; }
@@ -48,8 +48,25 @@
     .sidebar-collapsed .nav-label { opacity: 0; width: 0; }
     #mainContent { transition: margin-left 280ms cubic-bezier(.4,0,.2,1); }
     ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-track { background: #0c0c0e; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+    .bg-ambient { position: fixed; inset: 0; z-index: -10; overflow: hidden; background: #09090b; }
+    .bg-ambient .blob { position: absolute; border-radius: 50%; filter: blur(120px); }
+
+    .glass {
+      background: rgba(255,255,255,0.055);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      backdrop-filter: blur(28px) saturate(160%);
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.10);
+    }
+    .glass-strong {
+      background: rgba(255,255,255,0.04);
+      -webkit-backdrop-filter: blur(32px) saturate(160%);
+      backdrop-filter: blur(32px) saturate(160%);
+      border-color: rgba(255,255,255,0.10);
+    }
 
     #detailPanel {
       transform: translateX(100%);
@@ -66,37 +83,44 @@
   </style>
 </head>
 
-<body class="bg-slate-950 text-slate-100 min-h-screen">
+<body class="text-white min-h-screen">
+
+  <!-- ─── Ambient backdrop ────────────────────────────────────── -->
+  <div class="bg-ambient" aria-hidden="true">
+    <div class="blob w-[520px] h-[520px] bg-primary-600/25 -top-48 -left-48"></div>
+    <div class="blob w-[420px] h-[420px] bg-primary-500/15 top-1/3 -right-44"></div>
+    <div class="blob w-[460px] h-[460px] bg-indigo-500/10 bottom-[-160px] left-1/3"></div>
+  </div>
 
   <!-- ─── Sidebar ─────────────────────────────────────────────── -->
-  <aside id="sidebar" class="sidebar-expanded fixed top-0 left-0 h-full bg-slate-900 border-r border-slate-800 z-30 flex flex-col select-none">
+  <aside id="sidebar" class="sidebar-expanded glass-strong fixed top-0 left-0 h-full border-r z-30 flex flex-col select-none">
 
-    <div class="flex items-center gap-3 px-4 py-5 border-b border-slate-800">
-      <div class="w-8 h-8 rounded-lg bg-primary-700 flex items-center justify-center flex-shrink-0">
+    <div class="flex items-center gap-3 px-4 py-5 border-b border-white/10">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(10,132,255,0.45)]">
         <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       </div>
-      <span class="nav-label font-semibold text-slate-100 tracking-tight">Jack's Dashboard</span>
+      <span class="nav-label font-semibold text-white tracking-tight">Jack's Dashboard</span>
     </div>
 
-    <nav class="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
+    <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
 
-      <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors duration-150 cursor-pointer">
+      <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
         <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
         </svg>
         <span class="nav-label text-sm">Home</span>
       </a>
 
-      <a href="gym.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors duration-150 cursor-pointer">
+      <a href="gym.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
         <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.5 12.75l7.5-7.5 7.5 7.5m-15 6l7.5-7.5 7.5 7.5" />
         </svg>
         <span class="nav-label text-sm">Gym</span>
       </a>
 
-      <a href="finances.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors duration-150 cursor-pointer">
+      <a href="finances.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
         <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
@@ -104,7 +128,7 @@
       </a>
 
       <a href="goals.html" aria-current="page"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-primary-400 font-medium bg-primary-900/30 border-l-2 border-primary-500 cursor-pointer">
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-primary-300 font-medium bg-primary-500/15 border border-primary-400/25 shadow-[0_0_16px_rgba(10,132,255,0.18)] cursor-pointer">
         <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
         </svg>
@@ -113,9 +137,9 @@
 
     </nav>
 
-    <div class="border-t border-slate-800 p-3">
+    <div class="border-t border-white/10 p-3">
       <button id="sidebarToggle" onclick="toggleSidebar()"
-              class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors duration-150 cursor-pointer"
+              class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/8 transition-colors duration-150 cursor-pointer"
               aria-label="Collapse sidebar">
         <svg id="collapseIcon" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -128,19 +152,19 @@
   <!-- ─── Main ─────────────────────────────────────────────────── -->
   <div id="mainContent" class="ml-60 min-h-screen flex flex-col">
 
-    <header class="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 px-6 py-3 flex items-center justify-between">
-      <p id="headerDate" class="text-sm font-medium text-slate-400"></p>
+    <header class="sticky top-0 z-20 glass border-b border-white/10 px-6 py-3 flex items-center justify-between">
+      <p id="headerDate" class="text-sm font-medium text-white/55"></p>
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-full bg-primary-700 flex items-center justify-center text-white text-xs font-semibold">JC</div>
-        <span class="text-sm font-medium text-slate-300">Jack C.</span>
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-semibold shadow-[0_0_14px_rgba(10,132,255,0.4)]">JC</div>
+        <span class="text-sm font-medium text-white/80">Jack C.</span>
       </div>
     </header>
 
     <main class="flex-1 px-6 lg:px-8 py-6">
 
       <div class="mb-6">
-        <h1 class="text-xl font-semibold text-slate-100">Goals</h1>
-        <p class="text-sm text-slate-500 mt-0.5">Track what you're working toward.</p>
+        <h1 class="text-xl font-semibold text-white">Goals</h1>
+        <p class="text-sm text-white/45 mt-0.5">Track what you're working toward.</p>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -148,7 +172,7 @@
         <!-- Long-term column -->
         <div>
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest">Long-Term</h2>
+            <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest">Long-Term</h2>
             <button onclick="showAddForm('long')"
                     class="flex items-center gap-1 text-xs font-medium text-primary-400 hover:text-primary-300 transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -159,17 +183,17 @@
           </div>
 
           <!-- Add form -->
-          <div id="addForm-long" class="hidden mb-3 bg-slate-900 rounded-xl border border-slate-700 p-4 space-y-3">
+          <div id="addForm-long" class="hidden mb-3 glass rounded-2xl p-4 space-y-3">
             <input id="title-long" type="text" placeholder="Goal title"
-                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
+                   class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
             <div class="flex items-center gap-3">
-              <label class="text-xs text-slate-500 whitespace-nowrap">Due date</label>
+              <label class="text-xs text-white/40 whitespace-nowrap">Due date</label>
               <input id="due-long" type="date"
-                     class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-600" />
+                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white/80 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
             </div>
             <div class="flex gap-2 justify-end">
-              <button onclick="hideAddForm('long')" class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">Cancel</button>
-              <button onclick="submitGoal('long')" class="px-4 py-1.5 text-xs font-medium bg-primary-700 hover:bg-primary-600 text-white rounded-lg transition-colors">Save</button>
+              <button onclick="hideAddForm('long')" class="px-3 py-1.5 text-xs text-white/50 hover:text-white/85 rounded-full transition-colors">Cancel</button>
+              <button onclick="submitGoal('long')" class="px-4 py-1.5 text-xs font-medium bg-gradient-to-b from-primary-400 to-primary-600 hover:from-primary-300 hover:to-primary-500 text-white rounded-full shadow-[0_4px_16px_rgba(10,132,255,0.35)] transition-colors">Save</button>
             </div>
           </div>
 
@@ -179,7 +203,7 @@
         <!-- Short-term column -->
         <div>
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest">Short-Term</h2>
+            <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest">Short-Term</h2>
             <button onclick="showAddForm('short')"
                     class="flex items-center gap-1 text-xs font-medium text-primary-400 hover:text-primary-300 transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -190,17 +214,17 @@
           </div>
 
           <!-- Add form -->
-          <div id="addForm-short" class="hidden mb-3 bg-slate-900 rounded-xl border border-slate-700 p-4 space-y-3">
+          <div id="addForm-short" class="hidden mb-3 glass rounded-2xl p-4 space-y-3">
             <input id="title-short" type="text" placeholder="Goal title"
-                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
+                   class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
             <div class="flex items-center gap-3">
-              <label class="text-xs text-slate-500 whitespace-nowrap">Due date</label>
+              <label class="text-xs text-white/40 whitespace-nowrap">Due date</label>
               <input id="due-short" type="date"
-                     class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-600" />
+                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white/80 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
             </div>
             <div class="flex gap-2 justify-end">
-              <button onclick="hideAddForm('short')" class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">Cancel</button>
-              <button onclick="submitGoal('short')" class="px-4 py-1.5 text-xs font-medium bg-primary-700 hover:bg-primary-600 text-white rounded-lg transition-colors">Save</button>
+              <button onclick="hideAddForm('short')" class="px-3 py-1.5 text-xs text-white/50 hover:text-white/85 rounded-full transition-colors">Cancel</button>
+              <button onclick="submitGoal('short')" class="px-4 py-1.5 text-xs font-medium bg-gradient-to-b from-primary-400 to-primary-600 hover:from-primary-300 hover:to-primary-500 text-white rounded-full shadow-[0_4px_16px_rgba(10,132,255,0.35)] transition-colors">Save</button>
             </div>
           </div>
 
@@ -210,29 +234,29 @@
       </div>
     </main>
 
-    <footer class="px-6 py-4 border-t border-slate-800">
-      <p class="text-xs text-slate-600">© 2026 Jack's Dashboard</p>
+    <footer class="px-6 py-4 border-t border-white/10">
+      <p class="text-xs text-white/30">© 2026 Jack's Dashboard</p>
     </footer>
   </div>
 
   <!-- ─── Overlay ───────────────────────────────────────────────── -->
-  <div id="overlay" onclick="closeDetail()" class="fixed inset-0 bg-black/60 z-40"></div>
+  <div id="overlay" onclick="closeDetail()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40"></div>
 
   <!-- ─── Detail slide panel ───────────────────────────────────── -->
-  <div id="detailPanel" class="fixed top-0 right-0 h-full w-full sm:w-[480px] bg-slate-900 border-l border-slate-800 z-50 flex flex-col">
+  <div id="detailPanel" class="fixed top-0 right-0 h-full w-full sm:w-[480px] glass-strong border-l z-50 flex flex-col">
 
     <!-- Panel header -->
-    <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-800 flex-shrink-0">
+    <div class="flex items-center gap-3 px-5 py-4 border-b border-white/10 flex-shrink-0">
       <button onclick="closeDetail()"
-              class="p-1.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              class="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Close">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
-      <h2 id="panelTitle" class="text-sm font-semibold text-slate-100 truncate flex-1"></h2>
+      <h2 id="panelTitle" class="text-sm font-semibold text-white truncate flex-1"></h2>
       <button id="deleteGoalBtn" onclick="deleteActiveGoal()"
-              class="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-slate-800 transition-colors"
+              class="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-white/10 transition-colors"
               aria-label="Delete goal">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -241,32 +265,32 @@
     </div>
 
     <!-- Progress bar -->
-    <div id="panelProgress" class="px-5 py-4 border-b border-slate-800 flex-shrink-0"></div>
+    <div id="panelProgress" class="px-5 py-4 border-b border-white/10 flex-shrink-0"></div>
 
     <!-- Scrollable body -->
     <div class="flex-1 overflow-y-auto px-5 py-5 space-y-7">
 
       <!-- Steps taken -->
       <div>
-        <h3 class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3">Steps Taken</h3>
+        <h3 class="text-[11px] font-semibold text-white/40 uppercase tracking-widest mb-3">Steps Taken</h3>
         <div id="stepsDone" class="space-y-2.5 mb-3"></div>
         <div class="flex gap-2">
           <input id="newDoneStep" type="text" placeholder="Add a completed step…"
-                 class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
+                 class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
           <button onclick="addStep('done')"
-                  class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium rounded-lg transition-colors flex-shrink-0">Add</button>
+                  class="px-3 py-2 bg-white/10 hover:bg-white/15 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Add</button>
         </div>
       </div>
 
       <!-- Next steps -->
       <div>
-        <h3 class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3">Next Steps</h3>
+        <h3 class="text-[11px] font-semibold text-white/40 uppercase tracking-widest mb-3">Next Steps</h3>
         <div id="stepsNext" class="space-y-2.5 mb-3"></div>
         <div class="flex gap-2">
           <input id="newNextStep" type="text" placeholder="Add an upcoming step…"
-                 class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
+                 class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
           <button onclick="addStep('next')"
-                  class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium rounded-lg transition-colors flex-shrink-0">Add</button>
+                  class="px-3 py-2 bg-white/10 hover:bg-white/15 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Add</button>
         </div>
       </div>
 
@@ -305,13 +329,11 @@
     }
     function saveGoals(goals) { localStorage.setItem(KEY, JSON.stringify(goals)); }
 
-    // Parse YYYY-MM-DD as a local date (avoids UTC off-by-one)
     function parseDate(str) {
       const [y, m, d] = str.split('-').map(Number);
       return new Date(y, m - 1, d);
     }
 
-    // Today at midnight local time
     function today() {
       const d = new Date(); d.setHours(0,0,0,0); return d;
     }
@@ -348,13 +370,13 @@
       return `
         <div class="mt-3">
           <div class="flex items-center justify-between mb-1.5">
-            <span class="text-[11px] text-slate-500">Due ${dueFmt}</span>
-            <span class="text-[11px] font-medium ${daysLeft < 0 ? 'text-red-400' : 'text-slate-400'}">${label}</span>
+            <span class="text-[11px] text-white/35">Due ${dueFmt}</span>
+            <span class="text-[11px] font-medium ${daysLeft < 0 ? 'text-red-400' : 'text-white/45'}">${label}</span>
           </div>
-          <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div class="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
             <div class="h-full ${color} rounded-full transition-all duration-500" style="width:${pct}%"></div>
           </div>
-          <p class="text-[10px] text-slate-600 mt-1 text-right font-mono">${pct}% of time elapsed</p>
+          <p class="text-[10px] text-white/25 mt-1 text-right font-mono">${pct}% of time elapsed</p>
         </div>`;
     }
 
@@ -368,21 +390,21 @@
     function renderColumn(type, goals) {
       const el = document.getElementById(`list-${type}`);
       if (!goals.length) {
-        el.innerHTML = `<p class="text-sm text-slate-600 text-center py-8">No ${type}-term goals yet.</p>`;
+        el.innerHTML = `<p class="text-sm text-white/30 text-center py-8">No ${type}-term goals yet.</p>`;
         return;
       }
       el.innerHTML = goals.map(g => `
         <div onclick="openDetail('${g.id}')"
-             class="bg-slate-900 rounded-xl border border-slate-800 p-4 cursor-pointer hover:border-slate-600 transition-colors group">
+             class="glass rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-colors group">
           <div class="flex items-start justify-between gap-2">
-            <p class="text-sm font-medium text-slate-200 group-hover:text-white transition-colors leading-snug">${esc(g.title)}</p>
-            <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 flex-shrink-0 mt-0.5 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <p class="text-sm font-medium text-white/90 group-hover:text-white transition-colors leading-snug">${esc(g.title)}</p>
+            <svg class="w-4 h-4 text-white/25 group-hover:text-white/55 flex-shrink-0 mt-0.5 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
           </div>
-          <div class="flex items-center gap-2 mt-1.5 text-xs text-slate-500">
+          <div class="flex items-center gap-2 mt-1.5 text-xs text-white/40">
             <span>${g.stepsDone.length} step${g.stepsDone.length !== 1 ? 's' : ''} taken</span>
-            <span class="text-slate-700">·</span>
+            <span class="text-white/15">·</span>
             <span>${g.stepsNext.length} upcoming</span>
           </div>
           ${progressBlock(g)}
@@ -450,50 +472,50 @@
         const dueFmt = parseDate(g.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         document.getElementById('panelProgress').innerHTML = `
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs text-slate-500">Due ${dueFmt}</span>
-            <span class="text-xs font-semibold ${daysLeft < 0 ? 'text-red-400' : 'text-slate-300'}">${label}</span>
+            <span class="text-xs text-white/40">Due ${dueFmt}</span>
+            <span class="text-xs font-semibold ${daysLeft < 0 ? 'text-red-400' : 'text-white/75'}">${label}</span>
           </div>
-          <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+          <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
             <div class="h-full ${color} rounded-full transition-all duration-500" style="width:${pct}%"></div>
           </div>
-          <p class="text-[11px] text-slate-600 mt-1.5 text-right font-mono">${pct}% of time elapsed</p>`;
+          <p class="text-[11px] text-white/25 mt-1.5 text-right font-mono">${pct}% of time elapsed</p>`;
       } else {
         document.getElementById('panelProgress').innerHTML =
-          '<p class="text-xs text-slate-600">No due date set.</p>';
+          '<p class="text-xs text-white/30">No due date set.</p>';
       }
 
       // Steps
       document.getElementById('stepsDone').innerHTML = g.stepsDone.length
         ? g.stepsDone.map((s, i) => `
             <div class="flex items-start gap-2.5 group/step">
-              <svg class="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg class="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
               </svg>
-              <span class="text-sm text-slate-300 flex-1 leading-snug">${esc(s)}</span>
+              <span class="text-sm text-white/75 flex-1 leading-snug">${esc(s)}</span>
               <button onclick="removeStep('done',${i})"
-                      class="opacity-0 group-hover/step:opacity-100 p-0.5 text-slate-600 hover:text-red-400 transition-all flex-shrink-0">
+                      class="opacity-0 group-hover/step:opacity-100 p-0.5 text-white/25 hover:text-red-400 transition-all flex-shrink-0">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
               </button>
             </div>`).join('')
-        : '<p class="text-xs text-slate-600">No steps logged yet.</p>';
+        : '<p class="text-xs text-white/30">No steps logged yet.</p>';
 
       document.getElementById('stepsNext').innerHTML = g.stepsNext.length
         ? g.stepsNext.map((s, i) => `
             <div class="flex items-start gap-2.5 group/step">
-              <svg class="w-4 h-4 text-primary-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg class="w-4 h-4 text-primary-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
               </svg>
-              <span class="text-sm text-slate-300 flex-1 leading-snug">${esc(s)}</span>
+              <span class="text-sm text-white/75 flex-1 leading-snug">${esc(s)}</span>
               <button onclick="removeStep('next',${i})"
-                      class="opacity-0 group-hover/step:opacity-100 p-0.5 text-slate-600 hover:text-red-400 transition-all flex-shrink-0">
+                      class="opacity-0 group-hover/step:opacity-100 p-0.5 text-white/25 hover:text-red-400 transition-all flex-shrink-0">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
               </button>
             </div>`).join('')
-        : '<p class="text-xs text-slate-600">No upcoming steps yet.</p>';
+        : '<p class="text-xs text-white/30">No upcoming steps yet.</p>';
     }
 
     function closeDetail() {
