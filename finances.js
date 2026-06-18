@@ -42,16 +42,19 @@
     'Transport':     ['transport', 'uber', 'petrol', 'gas station', 'bp', 'z energy', 'mobil', 'caltex', 'gull', 'taxi', 'parking', 'at hop', 'train', 'metro', 'bus'],
     'Entertainment': ['entertainment', 'cinema', 'hoyts', 'reading cinema', 'golf', 'bowling', 'theatre', 'theater', 'movie', 'museum', 'zoo'],
     'Alcohol':       ['alcohol', 'liquor', 'bottle store', 'bws', 'big barrel', 'thirsty liquor', 'bar', 'pub', 'tavern', 'nightclub', 'brewery', 'cellar'],
-    'Subscriptions': ['subscriptions', 'apple.com', 'icloud', 'claude', 'anthropic', 'netflix', 'spotify', 'disney', 'prime video', 'youtube premium', 'subscription']
+    'Subscriptions': ['subscriptions', 'apple.com', 'icloud', 'claude', 'anthropic', 'netflix', 'spotify', 'disney', 'prime video', 'youtube premium', 'subscription'],
+    'Food':          ['cafe', 'coffee', 'pizza', "domino's", 'dominos', 'pizza hut', 'hell pizza', "mcdonald", 'kfc', 'burger king', 'burger fuel', 'subway', 'starbucks', 'restaurant', 'takeaway', 'take away', 'fish and chips', 'bakery', 'sushi', 'kebab', 'noodle', 'wok', 'thai', 'butchery']
   };
 
+  // categorize() returns the matched bucket, or 'Other' if nothing matches
+  // (so every transaction lands somewhere instead of being dropped silently).
   function categorize(text){
-    if(!text) return null;
+    if(!text) return 'Other';
     const t = text.toLowerCase();
     for(const [cat, keywords] of Object.entries(CATEGORY_RULES)){
       if(keywords.some(k => t.includes(k))) return cat;
     }
-    return null;
+    return 'Other';
   }
 
   // Fetch transactions from Akahu via our serverless proxy (/api/akahu).
