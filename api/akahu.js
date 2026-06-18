@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    const accountsRes = await fetch('https://api.akahu.nz/v1/accounts', { headers });
+    const accountsRes = await fetch('https://api.akahu.io/v1/accounts', { headers });
     if (!accountsRes.ok) {
       const body = await accountsRes.text();
       return res.status(accountsRes.status).json({ error: `Failed to fetch accounts: ${accountsRes.status} ${body}` });
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ transactions: [], message: 'No accounts found. Check your token and try again.' });
     }
 
-    const txRes = await fetch('https://api.akahu.nz/v1/transactions', { headers });
+    const txRes = await fetch('https://api.akahu.io/v1/transactions', { headers });
     if (!txRes.ok) {
       const body = await txRes.text();
       return res.status(txRes.status).json({ error: `Failed to fetch transactions: ${txRes.status} ${body}` });
