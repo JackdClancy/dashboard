@@ -34,6 +34,26 @@
 
   function save(){ localStorage.setItem('finances_v1',JSON.stringify(state)); }
 
+  // Auto-categorization: matches a transaction's merchant/description text
+  // against keywords for each of the fixed spending categories.
+  const CATEGORY_RULES = {
+    'Rent':          ['rent', 'flat account', 'flatmates', 'landlord'],
+    'Groceries':     ['groceries', 'woolworths', 'new world', 'paknsave', 'pak n save', 'countdown', 'fresh choice', 'four square', 'supermarket', 'foodstuffs'],
+    'Transport':     ['transport', 'uber', 'petrol', 'gas station', 'bp', 'z energy', 'mobil', 'caltex', 'gull', 'taxi', 'parking', 'at hop', 'train', 'metro', 'bus'],
+    'Entertainment': ['entertainment', 'cinema', 'hoyts', 'reading cinema', 'golf', 'bowling', 'theatre', 'theater', 'movie', 'museum', 'zoo'],
+    'Alcohol':       ['alcohol', 'liquor', 'bottle store', 'bws', 'big barrel', 'thirsty liquor', 'bar', 'pub', 'tavern', 'nightclub', 'brewery', 'cellar'],
+    'Subscriptions': ['subscriptions', 'apple.com', 'icloud', 'claude', 'anthropic', 'netflix', 'spotify', 'disney', 'prime video', 'youtube premium', 'subscription']
+  };
+
+  function categorize(text){
+    if(!text) return null;
+    const t = text.toLowerCase();
+    for(const [cat, keywords] of Object.entries(CATEGORY_RULES)){
+      if(keywords.some(k => t.includes(k))) return cat;
+    }
+    return null;
+  }
+
   // Fetch transactions from Akahu via our serverless proxy (/api/akahu).
   // The browser can't call api.akahu.nz directly due to CORS, so the
   // request is forwarded server-side instead.
@@ -99,9 +119,19 @@
   }
 
   function renderCategories(){
+    const range = document.querySelector('input[name=range]:checked')?.value || 'week';
+    const now = new Date();
+    let cutoff = new Date();
+    if(range==='week') cutoff.setDate(now.getDate()-7); else cutoff.setMonth(now.getMonth()-1);
+
     const totals = {};
     state.categories.forEach(c=>totals[c]=0);
-    state.transactions.forEach(t=>{ if(t.type==='debit') totals[t.category]= (totals[t.category]||0)+t.amount });
+    state.transactions.forEach(t=>{
+      if(t.type!=='debit') return;
+      if(new Date(t.date) <= cutoff) return;
+      const bucket = categorize(t.category);
+      if(bucket && totals.hasOwnProperty(bucket)) totals[bucket] += t.amount;
+    });
     const container = document.getElementById('categoryList'); container.innerHTML='';
     state.categories.forEach(c=>{
       const row = document.createElement('div'); row.className='category';
@@ -126,7 +156,7 @@
   }
 
   // Events
-  document.addEventListener('change', e=>{ if(e.target && e.target.name==='range') renderOverview(); });
+  document.addEventListener('change', e=>{ if(e.target && e.target.name==='range'){ renderOverview(); renderCategories(); } });
   document.getElementById('addCategoryForm').addEventListener('submit', e=>{
     e.preventDefault(); const name = document.getElementById('newCategoryName').value.trim();
     if(!name) return; state.categories.push(name); save(); render(); document.getElementById('newCategoryName').value='';
