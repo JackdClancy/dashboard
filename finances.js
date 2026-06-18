@@ -111,7 +111,7 @@
     document.getElementById('totalSpent').textContent = '$'+spent.toFixed(2);
     document.getElementById('income').textContent = '$'+income.toFixed(2);
     const list = document.getElementById('txList'); list.innerHTML='';
-    tx.slice().reverse().forEach(t=>{
+    tx.slice().sort((a,b)=> new Date(b.date) - new Date(a.date)).forEach(t=>{
       const el = document.createElement('div'); el.className='tx';
       el.textContent = `${new Date(t.date).toLocaleDateString()} • ${t.category} • ${t.type==='debit'?'-':''}$${t.amount.toFixed(2)}`;
       list.appendChild(el);
