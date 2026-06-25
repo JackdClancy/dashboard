@@ -26,6 +26,7 @@ export default async function handler(req, res) {
         const r = await fetch(`https://api.hevyapp.com/v1/workouts?page=${page}&pageSize=10`, {
           headers: { 'api-key': apiKey },
         });
+        if (r.status === 404) break; // ran out of pages - not an error
         if (!r.ok) {
           const body = await r.text();
           return res.status(r.status).json({ error: `Hevy API error: ${r.status} ${body}` });
