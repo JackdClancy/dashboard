@@ -25,7 +25,27 @@ export default async function handler(req, res) {
     }
 
     const data = await r.json();
-    return res.status(200).json({ workouts: data.workouts || [] });
+
+    // Reduce each workout to just what the client needs, including total
+    // volume (kg) computed from every set's weight_kg * reps.
+    const workouts = (data.workouts || []).map(w => {
+      let volumeKg = 0;
+      (w.exercises || []).forEach(ex => {
+        (ex.sets || []).forEach(s => {
+          if (typeof s.weight_kg === 'number' && typeof s.reps === 'number') {
+            volumeKg += s.weight_kg * s.reps;
+          }
+        });
+      });
+      return {
+        title: w.title,
+        start_time: w.start_time,
+        created_at: w.created_at,
+        volume_kg: Math.round(volumeKg * 10) / 10,
+      };
+    });
+
+    return res.status(200).json({ workouts });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
