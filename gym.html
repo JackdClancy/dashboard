@@ -189,10 +189,23 @@
           <h2 class="text-sm font-semibold text-white/90">Actual</h2>
           <div class="flex items-center gap-3">
             <button onclick="changeHevyKey()" class="text-xs text-white/35 hover:text-white/70 transition-colors">Change key</button>
-            <button onclick="loadHevyWorkouts()" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">Refresh</button>
+            <button onclick="refreshAll()" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">Refresh</button>
           </div>
         </div>
         <div id="actualRow" class="grid grid-cols-7 divide-x divide-white/10"></div>
+      </div>
+
+      <!-- ── Monthly adherence calendar ──────────────────────────── -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="glass rounded-3xl p-5">
+          <h2 id="monthlyCalTitle" class="text-sm font-semibold text-white/90 mb-4"></h2>
+          <div id="monthlyCal"></div>
+          <div class="flex items-center gap-4 mt-4 text-[11px] text-white/40">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Completed</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> Missed</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-white/15"></span> No plan</span>
+          </div>
+        </div>
       </div>
 
     </main>
@@ -361,6 +374,86 @@
       }
     }
 
+    // ── Monthly adherence calendar ──────────────────────────────────
+    // Green = a workout was logged that day. Red = something was planned
+    // for that weekday but nothing was logged (only for today/past days -
+    // future days can't be "missed" yet). Grey = no plan, nothing logged.
+    function renderMonthlyCalendar(completedDates){
+      const year = today.getFullYear();
+      const month = today.getMonth();
+      document.getElementById('monthlyCalTitle').textContent = `${MONTHS[month]} ${year}`;
+
+      const firstDow = new Date(year, month, 1).getDay();
+      const firstDowMon = (firstDow + 6) % 7; // Monday-first index
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const plan = loadPlan();
+
+      let html = '<div class="grid grid-cols-7 mb-1">';
+      WEEK_LABELS.forEach(label => {
+        html += `<div class="text-center text-[11px] font-medium text-white/30 py-1">${label.slice(0,2)}</div>`;
+      });
+      html += '</div><div class="grid grid-cols-7 gap-y-1">';
+
+      for(let i=0;i<firstDowMon;i++) html += '<div class="h-10"></div>';
+
+      for(let d=1; d<=daysInMonth; d++){
+        const date = new Date(year, month, d);
+        const iso = isoDate(date);
+        const weekdayLabel = WEEK_LABELS[(date.getDay() + 6) % 7];
+        const completed = completedDates.has(iso);
+        const planned = !!(plan[weekdayLabel] && plan[weekdayLabel].trim());
+        const future = date > today;
+
+        let color;
+        if(completed) color = 'bg-emerald-500 text-white';
+        else if(!future && planned) color = 'bg-red-500 text-white';
+        else color = 'bg-white/15 text-white/55';
+
+        const isTodayCell = date.toDateString() === today.toDateString();
+        html += `<div class="h-10 flex items-center justify-center">
+          <span class="w-8 h-8 flex items-center justify-center rounded-full text-sm font-semibold ${color} ${isTodayCell ? 'ring-2 ring-primary-400' : ''}">${d}</span>
+        </div>`;
+      }
+      html += '</div>';
+      document.getElementById('monthlyCal').innerHTML = html;
+    }
+
+    async function loadMonthlyCalendar(){
+      const key = loadHevyKey();
+      const calEl = document.getElementById('monthlyCal');
+      if(!key){
+        calEl.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Connect Hevy to see this.</p>';
+        return;
+      }
+      calEl.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Loading…</p>';
+
+      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      try {
+        const res = await fetch('/api/hevy', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ apiKey: key, since: isoDate(firstOfMonth) })
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error || ('Request failed: '+res.status));
+
+        const completed = new Set();
+        (data.workouts || []).forEach(w => {
+          const raw = w.start_time || w.created_at;
+          if(!raw) return;
+          completed.add(isoDate(new Date(raw)));
+        });
+        renderMonthlyCalendar(completed);
+      } catch(e){
+        calEl.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Error: ${esc(e.message)}</p>`;
+      }
+    }
+
+    function refreshAll(){
+      loadHevyWorkouts();
+      loadMonthlyCalendar();
+    }
+
     function initHevyConnect(){
       const connectEl = document.getElementById('hevyConnect');
       if(loadHevyKey()) connectEl.classList.add('hidden');
@@ -375,7 +468,7 @@
       saveHevyKeyToStorage(key);
       status.textContent = '';
       document.getElementById('hevyConnect').classList.add('hidden');
-      loadHevyWorkouts();
+      refreshAll();
     }
 
     function changeHevyKey(){
@@ -387,7 +480,7 @@
     renderWeekStrip();
     renderPlanned();
     initHevyConnect();
-    loadHevyWorkouts();
+    refreshAll();
   </script>
 
 </body>

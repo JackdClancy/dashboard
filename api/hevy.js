@@ -9,26 +9,54 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { apiKey } = req.body || {};
+  const { apiKey, since } = req.body || {};
   if (!apiKey) {
     return res.status(400).json({ error: 'Missing apiKey' });
   }
 
   try {
-    const r = await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=10', {
-      headers: { 'api-key': apiKey },
-    });
+    let rawWorkouts = [];
 
-    if (!r.ok) {
-      const body = await r.text();
-      return res.status(r.status).json({ error: `Hevy API error: ${r.status} ${body}` });
+    if (since) {
+      // Hevy returns newest-first and caps pageSize at 10, so to cover a
+      // full month we page through until we pass the requested date.
+      const sinceTime = new Date(since).getTime();
+      const MAX_PAGES = 10;
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const r = await fetch(`https://api.hevyapp.com/v1/workouts?page=${page}&pageSize=10`, {
+          headers: { 'api-key': apiKey },
+        });
+        if (!r.ok) {
+          const body = await r.text();
+          return res.status(r.status).json({ error: `Hevy API error: ${r.status} ${body}` });
+        }
+        const pageData = await r.json();
+        const pageWorkouts = pageData.workouts || [];
+        if (pageWorkouts.length === 0) break;
+        rawWorkouts.push(...pageWorkouts);
+        const oldest = pageWorkouts[pageWorkouts.length - 1];
+        const oldestTime = new Date(oldest.start_time || oldest.created_at).getTime();
+        if (oldestTime < sinceTime) break;
+      }
+      rawWorkouts = rawWorkouts.filter(w => {
+        const t = new Date(w.start_time || w.created_at).getTime();
+        return t >= sinceTime;
+      });
+    } else {
+      const r = await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=10', {
+        headers: { 'api-key': apiKey },
+      });
+      if (!r.ok) {
+        const body = await r.text();
+        return res.status(r.status).json({ error: `Hevy API error: ${r.status} ${body}` });
+      }
+      const data = await r.json();
+      rawWorkouts = data.workouts || [];
     }
-
-    const data = await r.json();
 
     // Reduce each workout to just what the client needs, including total
     // volume (kg) computed from every set's weight_kg * reps.
-    const workouts = (data.workouts || []).map(w => {
+    const workouts = rawWorkouts.map(w => {
       let volumeKg = 0;
       (w.exercises || []).forEach(ex => {
         (ex.sets || []).forEach(s => {
