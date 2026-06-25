@@ -327,9 +327,9 @@
       el.innerHTML = WEEK_LABELS.map((label, i) => {
         const t = isToday(weekDates[i]);
         return `<div class="p-3 transition-shadow" data-planned-cell="${label}">
-          <p class="text-xs font-semibold ${t ? 'text-primary-300' : 'text-white/45'} text-center mb-2">${label}</p>
+          <p class="text-sm font-bold ${t ? 'text-primary-300' : 'text-white/60'} text-center mb-2">${label}</p>
           <input data-day="${label}" value="${esc(plan[label] || '')}" placeholder="—"
-                 class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white text-center placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400/40" />
+                 class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm font-bold text-white text-center placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400/40" />
         </div>`;
       }).join('');
 
@@ -364,21 +364,21 @@
     function dayCell(label, d, contentHtml, status){
       const t = isToday(d);
       return `<div class="p-3 text-center transition-shadow ${statusClasses(status)} ${t ? 'ring-1 ring-inset ring-primary-400/40' : ''}">
-        <p class="text-xs font-semibold ${t ? 'text-primary-300' : 'text-white/45'} mb-1.5">${label}</p>
+        <p class="text-sm font-bold ${t ? 'text-primary-300' : 'text-white/60'} mb-1.5">${label}</p>
         ${contentHtml}
       </div>`;
     }
 
     function placeholderContent(text){
-      return `<p class="text-xs text-white/25 leading-snug">${esc(text)}</p>`;
+      return `<p class="text-sm font-bold text-white/25 leading-snug">${esc(text)}</p>`;
     }
 
     function workoutsContent(entries){
       if(!entries || entries.length === 0) return placeholderContent('—');
       return entries.map(e => `
         <div class="mb-2 last:mb-0">
-          <p class="text-xs text-white/75 leading-snug">${esc(e.title)}</p>
-          <p class="text-[10px] text-white/40 font-mono mt-0.5">${e.volume.toLocaleString()} kg</p>
+          <p class="text-sm font-bold text-white/85 leading-snug">${esc(e.title)}</p>
+          <p class="text-xs text-white/45 font-mono font-semibold mt-0.5">${e.volume.toLocaleString()} kg</p>
         </div>`).join('');
     }
 
