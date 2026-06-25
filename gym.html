@@ -278,6 +278,31 @@
       }).join('');
     }
 
+    // ── Day status (red/green/grey) shared by Planned + Actual rows ──
+    // Green = a workout was logged that day (planned or not). Red = that
+    // weekday has a plan but nothing was logged (past/today only - future
+    // days can't be "missed" yet). Grey = no plan, nothing logged, or data
+    // not loaded yet.
+    let lastCompletedDates = null;
+
+    function dayStatus(weekdayLabel, date, completedDates){
+      if(!completedDates) return 'grey';
+      const plan = loadPlan();
+      const planned = !!(plan[weekdayLabel] && plan[weekdayLabel].trim());
+      const completed = completedDates.has(isoDate(date));
+      const future = date > today;
+      if(completed) return 'green';
+      if(future) return 'grey';
+      if(planned) return 'red';
+      return 'grey';
+    }
+
+    function statusClasses(status){
+      if(status === 'green') return 'bg-emerald-500/5 shadow-[inset_0_0_22px_rgba(16,185,129,0.22)]';
+      if(status === 'red')   return 'bg-red-500/5 shadow-[inset_0_0_22px_rgba(239,68,68,0.22)]';
+      return '';
+    }
+
     // ── Planned row (editable, persisted per weekday) ──────────────
     const PLAN_KEY = 'gym_plan';
     function loadPlan(){ try { return JSON.parse(localStorage.getItem(PLAN_KEY)) || {}; } catch { return {}; } }
@@ -288,7 +313,7 @@
       const el = document.getElementById('plannedRow');
       el.innerHTML = WEEK_LABELS.map((label, i) => {
         const t = isToday(weekDates[i]);
-        return `<div class="p-3 ${t ? 'bg-primary-500/10' : ''}">
+        return `<div class="p-3 transition-shadow" data-planned-cell="${label}">
           <p class="text-xs font-semibold ${t ? 'text-primary-300' : 'text-white/45'} text-center mb-2">${label}</p>
           <input data-day="${label}" value="${esc(plan[label] || '')}" placeholder="—"
                  class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white text-center placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400/40" />
@@ -300,7 +325,21 @@
           const p = loadPlan();
           p[input.dataset.day] = input.value.trim();
           savePlan(p);
+          applyPlannedGlow(lastCompletedDates);
         });
+      });
+
+      applyPlannedGlow(lastCompletedDates);
+    }
+
+    function applyPlannedGlow(completedDates){
+      lastCompletedDates = completedDates;
+      WEEK_LABELS.forEach((label, i) => {
+        const cell = document.querySelector(`[data-planned-cell="${label}"]`);
+        if(!cell) return;
+        const status = dayStatus(label, weekDates[i], completedDates);
+        const t = isToday(weekDates[i]);
+        cell.className = `p-3 transition-shadow ${statusClasses(status)} ${t ? 'ring-1 ring-inset ring-primary-400/40' : ''}`;
       });
     }
 
@@ -309,9 +348,9 @@
     function loadHevyKey(){ return localStorage.getItem(HEVY_KEY) || ''; }
     function saveHevyKeyToStorage(k){ localStorage.setItem(HEVY_KEY, k); }
 
-    function dayCell(label, d, contentHtml){
+    function dayCell(label, d, contentHtml, status){
       const t = isToday(d);
-      return `<div class="p-3 text-center ${t ? 'bg-primary-500/10' : ''}">
+      return `<div class="p-3 text-center transition-shadow ${statusClasses(status)} ${t ? 'ring-1 ring-inset ring-primary-400/40' : ''}">
         <p class="text-xs font-semibold ${t ? 'text-primary-300' : 'text-white/45'} mb-1.5">${label}</p>
         ${contentHtml}
       </div>`;
@@ -357,17 +396,21 @@
         workouts.forEach(w => {
           const raw = w.start_time || w.created_at;
           if(!raw) return;
-          const key = isoDate(new Date(raw));
-          if(!byDate[key]) byDate[key] = [];
-          byDate[key].push({ title: w.title || 'Workout', volume: w.volume_kg || 0 });
+          const dateKey = isoDate(new Date(raw));
+          if(!byDate[dateKey]) byDate[dateKey] = [];
+          byDate[dateKey].push({ title: w.title || 'Workout', volume: w.volume_kg || 0 });
         });
+        const completedDates = new Set(Object.keys(byDate));
 
         const el = document.getElementById('actualRow');
         el.innerHTML = WEEK_LABELS.map((label, i) => {
           const d = weekDates[i];
           const entries = byDate[isoDate(d)] || [];
-          return dayCell(label, d, workoutsContent(entries));
+          const status = dayStatus(label, d, completedDates);
+          return dayCell(label, d, workoutsContent(entries), status);
         }).join('');
+
+        applyPlannedGlow(completedDates);
       } catch(e){
         const el = document.getElementById('actualRow');
         el.innerHTML = `<div class="col-span-7 p-4 text-center text-xs text-red-400">Error: ${esc(e.message)}</div>`;
