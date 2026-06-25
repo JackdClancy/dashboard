@@ -321,20 +321,6 @@
 
     renderCalendar();
 
-    // ── Workout week grid ────────────────────────────────────────
-    const todayAbr = DAYS_ABR[now.getDay()];
-    const WK_DAYS  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    const grid     = document.getElementById('workoutGrid');
-    WK_DAYS.forEach(day => {
-      const isToday = day === todayAbr;
-      const col = document.createElement('div');
-      col.className = 'p-4 min-h-[100px]' + (isToday ? ' bg-primary-500/10' : '');
-      col.innerHTML = `
-        <p class="text-xs font-semibold mb-3 ${isToday ? 'text-primary-300' : 'text-white/45'}">${day}</p>
-        <p class="text-xs text-white/20">—</p>`;
-      grid.appendChild(col);
-    });
-
     // ── Shared helpers ───────────────────────────────────────────
     function esc(str) {
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -345,6 +331,119 @@
     }
     function todayMs() {
       const d = new Date(); d.setHours(0,0,0,0); return d.getTime();
+    }
+
+    // ── Workout week row (mirrors the Actual row on the Gym page) ────
+    const WK_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const today   = new Date(); today.setHours(0,0,0,0);
+
+    function isoDate(d){
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+    function isToday(d){ return d.toDateString() === today.toDateString(); }
+
+    function getMonday(d){
+      const dt = new Date(d);
+      const dow = dt.getDay();
+      const diff = dow === 0 ? -6 : 1 - dow;
+      dt.setDate(dt.getDate() + diff);
+      return dt;
+    }
+    const monday = getMonday(today);
+    const weekDates = WK_DAYS.map((_, i) => {
+      const d = new Date(monday); d.setDate(monday.getDate() + i); return d;
+    });
+
+    const PLAN_KEY = 'gym_plan';
+    function loadPlan(){ try { return JSON.parse(localStorage.getItem(PLAN_KEY)) || {}; } catch { return {}; } }
+
+    function dayStatus(weekdayLabel, date, completedDates){
+      if(!completedDates) return 'grey';
+      const plan = loadPlan();
+      const planned = !!(plan[weekdayLabel] && plan[weekdayLabel].trim());
+      const completed = completedDates.has(isoDate(date));
+      const future = date > today;
+      if(completed) return 'green';
+      if(future) return 'grey';
+      if(planned) return 'red';
+      return 'grey';
+    }
+
+    function statusClasses(status){
+      if(status === 'green') return 'bg-emerald-500/5 shadow-[inset_0_0_22px_rgba(16,185,129,0.22)]';
+      if(status === 'red')   return 'bg-red-500/5 shadow-[inset_0_0_22px_rgba(239,68,68,0.22)]';
+      return '';
+    }
+
+    function dayCell(label, d, contentHtml, status){
+      const t = isToday(d);
+      return `<div class="p-3 text-center transition-shadow ${statusClasses(status)} ${t ? 'ring-1 ring-inset ring-primary-400/40' : ''}">
+        <p class="text-sm font-bold ${t ? 'text-primary-300' : 'text-white/60'} mb-1.5">${label}</p>
+        ${contentHtml}
+      </div>`;
+    }
+
+    function placeholderContent(text){
+      return `<p class="text-sm font-bold text-white/25 leading-snug">${esc(text)}</p>`;
+    }
+
+    function workoutsContent(entries){
+      if(!entries || entries.length === 0) return placeholderContent('—');
+      return entries.map(e => `
+        <div class="mb-2 last:mb-0">
+          <p class="text-sm font-bold text-white/85 leading-snug">${esc(e.title)}</p>
+          <p class="text-xs text-white/45 font-mono font-semibold mt-0.5">${e.volume.toLocaleString()} kg</p>
+        </div>`).join('');
+    }
+
+    const HEVY_KEY = 'hevy_api_key';
+    function loadHevyKey(){ return localStorage.getItem(HEVY_KEY) || ''; }
+
+    function renderWorkoutPlaceholder(text){
+      const el = document.getElementById('workoutGrid');
+      el.innerHTML = WK_DAYS.map((label, i) => dayCell(label, weekDates[i], placeholderContent(text))).join('');
+    }
+
+    async function loadHomeWorkouts(){
+      const key = loadHevyKey();
+      if(!key){
+        renderWorkoutPlaceholder('Connect Hevy');
+        return;
+      }
+      renderWorkoutPlaceholder('Loading…');
+
+      try {
+        const res = await fetch('/api/hevy', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ apiKey: key })
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error || ('Request failed: '+res.status));
+
+        const workouts = data.workouts || [];
+        const byDate = {};
+        workouts.forEach(w => {
+          const raw = w.start_time || w.created_at;
+          if(!raw) return;
+          const dateKey = isoDate(new Date(raw));
+          if(!byDate[dateKey]) byDate[dateKey] = [];
+          byDate[dateKey].push({ title: w.title || 'Workout', volume: w.volume_kg || 0 });
+        });
+        const completedDates = new Set(Object.keys(byDate));
+
+        const el = document.getElementById('workoutGrid');
+        el.innerHTML = WK_DAYS.map((label, i) => {
+          const d = weekDates[i];
+          const entries = byDate[isoDate(d)] || [];
+          const status = dayStatus(label, d, completedDates);
+          return dayCell(label, d, workoutsContent(entries), status);
+        }).join('');
+      } catch(e){
+        const el = document.getElementById('workoutGrid');
+        el.innerHTML = `<div class="col-span-7 p-4 text-center text-xs text-red-400">Error: ${esc(e.message)}</div>`;
+      }
     }
 
     // ── Goals from localStorage ──────────────────────────────────
@@ -431,6 +530,7 @@
 
     renderHomeGoals();
     renderTodos();
+    loadHomeWorkouts();
   </script>
 
 </body>
