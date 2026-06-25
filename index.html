@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     tailwind.config = {
@@ -426,40 +427,74 @@
       }).join('');
     }
 
-    // ── To-Do ────────────────────────────────────────────────────
-    const TODO_KEY = 'jd_todos';
-    function loadTodos() { try { return JSON.parse(localStorage.getItem(TODO_KEY)) || []; } catch { return []; } }
-    function saveTodos(t) { localStorage.setItem(TODO_KEY, JSON.stringify(t)); }
+    // ── To-Do (Supabase, synced live across every open device) ───────
+    let supabaseClient = null;
+    let todosCache = [];
+
+    async function initSupabaseTodos() {
+      const el = document.getElementById('todoList');
+      try {
+        const cfgRes = await fetch('/api/config');
+        const cfg = await cfgRes.json();
+        if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) throw new Error('Supabase is not configured');
+
+        supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+
+        await loadTodos();
+
+        supabaseClient
+          .channel('todos-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => {
+            loadTodos();
+          })
+          .subscribe();
+      } catch (e) {
+        el.innerHTML = `<p class="text-sm text-red-400 text-center py-6">Couldn't connect: ${esc(e.message)}</p>`;
+      }
+    }
+
+    async function loadTodos() {
+      const { data, error } = await supabaseClient
+        .from('todos')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error) {
+        document.getElementById('todoList').innerHTML =
+          `<p class="text-sm text-red-400 text-center py-6">Error: ${esc(error.message)}</p>`;
+        return;
+      }
+      todosCache = data || [];
+      renderTodos();
+    }
 
     function renderTodos() {
-      const todos = loadTodos();
       const el = document.getElementById('todoList');
-      if (!todos.length) {
+      if (!todosCache.length) {
         el.innerHTML = '<p class="text-sm text-white/30 text-center py-6">Nothing on the list.</p>';
         return;
       }
-      el.innerHTML = todos.map(t => `
+      el.innerHTML = todosCache.map(t => `
         <label class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/8 cursor-pointer group transition-colors">
           <input type="checkbox" onchange="completeTodo('${esc(t.id)}')"
                  class="w-4 h-4 rounded-full border-white/20 bg-white/5 cursor-pointer accent-blue-500 flex-shrink-0" />
-          <span class="text-sm text-white/75 group-hover:text-white transition-colors">${esc(t.text)}</span>
+          <span class="text-sm text-white/75 group-hover:text-white transition-colors">${esc(t.title)}</span>
         </label>`).join('');
     }
 
-    function addTodo() {
+    async function addTodo() {
       const input = document.getElementById('todoInput');
       const text  = input.value.trim();
       if (!text) return;
-      const todos = loadTodos();
-      todos.push({ id: Date.now().toString(), text });
-      saveTodos(todos);
       input.value = '';
-      renderTodos();
+      const { error } = await supabaseClient.from('todos').insert({ title: text });
+      if (error) { console.error('Insert failed:', error); return; }
+      loadTodos();
     }
 
-    function completeTodo(id) {
-      saveTodos(loadTodos().filter(t => t.id !== id));
-      renderTodos();
+    async function completeTodo(id) {
+      const { error } = await supabaseClient.from('todos').delete().eq('id', id);
+      if (error) { console.error('Delete failed:', error); return; }
+      loadTodos();
     }
 
     document.getElementById('todoInput').addEventListener('keydown', e => {
@@ -467,7 +502,7 @@
     });
 
     renderHomeGoals();
-    renderTodos();
+    initSupabaseTodos();
     loadHomeWorkouts();
   </script>
 
