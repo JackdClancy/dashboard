@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const r = await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=15', {
+    const r = await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=10', {
       headers: { 'api-key': apiKey },
     });
 
