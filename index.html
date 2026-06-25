@@ -158,18 +158,18 @@
       </div>
     </header>
 
-    <main class="flex-1 px-6 lg:px-8 py-6 space-y-5">
+    <main class="flex-1 px-6 lg:px-8 py-6 flex flex-col gap-5">
 
       <!-- Title -->
-      <div>
+      <div class="max-sm:order-1">
         <h1 class="text-xl font-semibold text-white">Overview</h1>
         <p id="greeting" class="text-sm text-white/45 mt-0.5"></p>
       </div>
 
       <!-- ── Goals row ─────────────────────────────────────────── -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 max-sm:contents">
 
-        <div class="glass rounded-3xl flex flex-col">
+        <div class="glass rounded-3xl flex flex-col max-sm:order-3">
           <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <h2 class="text-sm font-semibold text-white/90">Long-Term Goals</h2>
             <a href="goals.html" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">Manage →</a>
@@ -177,7 +177,7 @@
           <div id="longGoals" class="flex-1 p-3 space-y-1"></div>
         </div>
 
-        <div class="glass rounded-3xl flex flex-col">
+        <div class="glass rounded-3xl flex flex-col max-sm:order-4">
           <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <h2 class="text-sm font-semibold text-white/90">Short-Term Goals</h2>
             <a href="goals.html" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">Manage →</a>
@@ -188,9 +188,9 @@
       </div>
 
       <!-- ── Todo + Projects row ───────────────────────────────── -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 max-sm:contents">
 
-        <div class="glass rounded-3xl flex flex-col">
+        <div class="glass rounded-3xl flex flex-col max-sm:order-2">
           <div class="px-5 py-4 border-b border-white/10">
             <h2 class="text-sm font-semibold text-white/90">To-Do</h2>
           </div>
@@ -203,7 +203,7 @@
           <div id="todoList" class="flex-1 p-3 space-y-1 overflow-y-auto max-h-72"></div>
         </div>
 
-        <div class="glass rounded-3xl flex flex-col">
+        <div class="glass rounded-3xl flex flex-col max-sm:order-5">
           <div class="px-5 py-4 border-b border-white/10">
             <h2 class="text-sm font-semibold text-white/90">Current Projects</h2>
           </div>
@@ -215,7 +215,7 @@
       </div>
 
       <!-- ── Workout plan ──────────────────────────────────────── -->
-      <div class="glass rounded-3xl">
+      <div class="glass rounded-3xl max-sm:order-6">
         <div class="px-5 py-4 border-b border-white/10">
           <h2 class="text-sm font-semibold text-white/90">Workout Plan</h2>
         </div>
