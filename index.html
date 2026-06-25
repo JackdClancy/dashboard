@@ -166,24 +166,6 @@
         <p id="greeting" class="text-sm text-white/45 mt-0.5"></p>
       </div>
 
-      <!-- ── Calendar ──────────────────────────────────────────── -->
-      <div class="glass rounded-3xl p-5">
-        <div class="flex items-center justify-between mb-4">
-          <h2 id="calTitle" class="text-sm font-semibold text-white/90"></h2>
-          <div class="flex items-center gap-1">
-            <button onclick="shiftMonth(-1)" aria-label="Previous month"
-                    class="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-            </button>
-            <button onclick="shiftMonth(1)" aria-label="Next month"
-                    class="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            </button>
-          </div>
-        </div>
-        <div id="calGrid"></div>
-      </div>
-
       <!-- ── Goals row ─────────────────────────────────────────── -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
@@ -269,7 +251,6 @@
     const now      = new Date();
     const DAYS     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const MONTHS   = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const DAYS_ABR = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
     document.getElementById('headerDate').textContent =
       `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}`;
@@ -277,49 +258,6 @@
     const h = now.getHours();
     document.getElementById('greeting').textContent =
       (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + ', Jack.';
-
-    // ── Calendar ─────────────────────────────────────────────────
-    let calYear  = now.getFullYear();
-    let calMonth = now.getMonth();
-
-    function renderCalendar() {
-      const firstDow    = new Date(calYear, calMonth, 1).getDay();
-      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-      const todayIsHere = calMonth === now.getMonth() && calYear === now.getFullYear();
-      const todayDate   = now.getDate();
-
-      document.getElementById('calTitle').textContent = `${MONTHS[calMonth]} ${calYear}`;
-
-      let html = '<div class="grid grid-cols-7 mb-1">';
-      ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => {
-        html += `<div class="text-center text-[11px] font-medium text-white/30 py-1">${d}</div>`;
-      });
-      html += '</div><div class="grid grid-cols-7 gap-y-0.5">';
-
-      for (let i = 0; i < firstDow; i++) {
-        html += '<div class="h-9"></div>';
-      }
-      for (let d = 1; d <= daysInMonth; d++) {
-        if (todayIsHere && d === todayDate) {
-          html += `<div class="h-9 flex items-center justify-center">
-            <span class="w-8 h-8 flex items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white text-sm font-semibold shadow-[0_0_16px_rgba(10,132,255,0.55)]">${d}</span>
-          </div>`;
-        } else {
-          html += `<div class="h-9 flex items-center justify-center text-sm text-white/55 hover:bg-white/10 rounded-lg cursor-pointer transition-colors">${d}</div>`;
-        }
-      }
-      html += '</div>';
-      document.getElementById('calGrid').innerHTML = html;
-    }
-
-    function shiftMonth(dir) {
-      calMonth += dir;
-      if (calMonth > 11) { calMonth = 0; calYear++; }
-      if (calMonth < 0)  { calMonth = 11; calYear--; }
-      renderCalendar();
-    }
-
-    renderCalendar();
 
     // ── Shared helpers ───────────────────────────────────────────
     function esc(str) {
