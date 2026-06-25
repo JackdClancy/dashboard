@@ -208,7 +208,7 @@
         </div>
 
         <div class="glass rounded-3xl p-5">
-          <div class="grid grid-cols-2 gap-5">
+          <div class="grid grid-cols-[1fr_1.5fr] gap-3">
             <div>
               <h2 class="text-sm font-semibold text-white/90 mb-4">Stats</h2>
               <div id="statsPanel"></div>
@@ -565,12 +565,12 @@
       }
       const max = Math.max(...muscleGroups.map(m => m.pct), 1);
       el.innerHTML = muscleGroups.map(m => `
-        <div class="flex items-center gap-3 mb-2.5 last:mb-0">
-          <span class="text-xs text-white/60 w-20 flex-shrink-0 truncate">${esc(capitalize(m.muscle))}</span>
-          <div class="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+        <div class="flex items-center gap-3 mb-4 last:mb-0">
+          <span class="text-sm text-white/65 w-24 flex-shrink-0 truncate">${esc(capitalize(m.muscle))}</span>
+          <div class="flex-1 h-4 bg-white/10 rounded-full overflow-hidden">
             <div class="h-full bg-gradient-to-r from-primary-400 to-primary-600 rounded-full" style="width:${(m.pct/max*100)}%"></div>
           </div>
-          <span class="text-xs text-white/70 font-mono w-10 text-right flex-shrink-0">${m.pct}%</span>
+          <span class="text-sm text-white/75 font-mono w-12 text-right flex-shrink-0">${m.pct}%</span>
         </div>`).join('');
     }
 
