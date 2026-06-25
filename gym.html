@@ -80,7 +80,7 @@
   </div>
 
   <!-- ─── Sidebar ─────────────────────────────────────────────── -->
-  <aside id="sidebar" class="sidebar-expanded glass-strong fixed top-0 left-0 h-full border-r z-30 flex flex-col select-none">
+  <aside id="sidebar" class="sidebar-collapsed glass-strong fixed top-0 left-0 h-full border-r z-30 flex flex-col select-none">
 
     <div class="flex items-center gap-3 px-4 py-5 border-b border-white/10">
       <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(10,132,255,0.45)]">
@@ -127,9 +127,9 @@
     <div class="border-t border-white/10 p-3">
       <button id="sidebarToggle" onclick="toggleSidebar()"
               class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/8 transition-colors duration-150 cursor-pointer"
-              aria-label="Collapse sidebar">
+              aria-label="Expand sidebar">
         <svg id="collapseIcon" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
         </svg>
         <span class="nav-label text-xs">Collapse</span>
       </button>
@@ -137,7 +137,7 @@
   </aside>
 
   <!-- ─── Main ─────────────────────────────────────────────────── -->
-  <div id="mainContent" class="ml-60 min-h-screen flex flex-col">
+  <div id="mainContent" class="ml-16 min-h-screen flex flex-col">
 
     <header class="sticky top-0 z-20 glass border-b border-white/10 px-6 py-3 flex items-center justify-between">
       <p id="headerDate" class="text-sm font-medium text-white/55"></p>
@@ -230,7 +230,7 @@
 
   <script>
     // ── Sidebar ──────────────────────────────────────────────────
-    let expanded = true;
+    let expanded = false;
     function toggleSidebar() {
       const sidebar = document.getElementById('sidebar');
       const main    = document.getElementById('mainContent');
