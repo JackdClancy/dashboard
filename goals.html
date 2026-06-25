@@ -463,26 +463,44 @@
 
       // Progress
       const info = progressInfo(g);
+      let statusHtml, barHtml;
       if (info) {
         const { pct, daysLeft } = info;
-        const color  = barColor(pct, daysLeft);
-        const label  = daysLeft < 0  ? `${Math.abs(daysLeft)} days overdue`
-                     : daysLeft === 0 ? 'Due today'
-                     : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
-        const dueFmt = parseDate(g.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        document.getElementById('panelProgress').innerHTML = `
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs text-white/40">Due ${dueFmt}</span>
-            <span class="text-xs font-semibold ${daysLeft < 0 ? 'text-red-400' : 'text-white/75'}">${label}</span>
-          </div>
-          <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+        const color = barColor(pct, daysLeft);
+        const label = daysLeft < 0  ? `${Math.abs(daysLeft)} days overdue`
+                    : daysLeft === 0 ? 'Due today'
+                    : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
+        statusHtml = `<span class="text-xs font-semibold ${daysLeft < 0 ? 'text-red-400' : 'text-white/75'}">${label}</span>`;
+        barHtml = `
+          <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-3">
             <div class="h-full ${color} rounded-full transition-all duration-500" style="width:${pct}%"></div>
           </div>
           <p class="text-[11px] text-white/25 mt-1.5 text-right font-mono">${pct}% of time elapsed</p>`;
       } else {
-        document.getElementById('panelProgress').innerHTML =
-          '<p class="text-xs text-white/30">No due date set.</p>';
+        statusHtml = '<span class="text-xs text-white/30">No due date set</span>';
+        barHtml = '';
       }
+
+      document.getElementById('panelProgress').innerHTML = `
+        <div class="flex items-center justify-between gap-3">
+          <label class="text-xs text-white/40 flex items-center gap-2 flex-shrink-0">
+            Due
+            <input id="panelDueInput" type="date" value="${g.due || ''}"
+                   class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/80 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400/40" />
+          </label>
+          ${statusHtml}
+        </div>
+        ${barHtml}`;
+
+      document.getElementById('panelDueInput').addEventListener('change', e => {
+        const allGoals = loadGoals();
+        const goal = allGoals.find(x => x.id === activeId);
+        if (!goal) return;
+        goal.due = e.target.value || null;
+        saveGoals(allGoals);
+        refreshPanel();
+        renderAll();
+      });
 
       // Steps
       document.getElementById('stepsDone').innerHTML = g.stepsDone.length
