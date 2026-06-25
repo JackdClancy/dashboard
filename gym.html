@@ -206,6 +206,11 @@
             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-white/15"></span> No plan</span>
           </div>
         </div>
+
+        <div class="glass rounded-3xl p-5">
+          <h2 class="text-sm font-semibold text-white/90 mb-4">Stats</h2>
+          <div id="statsPanel"></div>
+        </div>
       </div>
 
     </main>
@@ -411,16 +416,64 @@
         }).join('');
 
         applyPlannedGlow(completedDates);
+
+        // Weekly consistency: judged days = today/past days with a plan.
+        let greenCount = 0, redCount = 0;
+        WEEK_LABELS.forEach((label, i) => {
+          const status = dayStatus(label, weekDates[i], completedDates);
+          if(status === 'green') greenCount++;
+          else if(status === 'red') redCount++;
+        });
+        stats.weeklyPct = (greenCount + redCount) > 0 ? (greenCount / (greenCount + redCount)) * 100 : null;
+
+        // Time in the gym this week, from workouts whose date falls Mon-Sun.
+        const weekIsoSet = new Set(weekDates.map(isoDate));
+        let weeklyMinutes = 0;
+        workouts.forEach(w => {
+          if(!w.start_time || !w.end_time) return;
+          if(!weekIsoSet.has(isoDate(new Date(w.start_time)))) return;
+          const mins = (new Date(w.end_time) - new Date(w.start_time)) / 60000;
+          if(mins > 0) weeklyMinutes += mins;
+        });
+        stats.weeklyMinutes = weeklyMinutes;
+
+        renderStatsPanel();
       } catch(e){
         const el = document.getElementById('actualRow');
         el.innerHTML = `<div class="col-span-7 p-4 text-center text-xs text-red-400">Error: ${esc(e.message)}</div>`;
       }
     }
 
+    // ── Stats panel (weekly/monthly consistency + weekly time) ───────
+    const stats = { weeklyPct: null, monthlyPct: null, weeklyMinutes: 0 };
+
+    function renderStatsPanel(){
+      const el = document.getElementById('statsPanel');
+      if(!el) return;
+      const fmtPct = v => v === null ? '—' : `${Math.round(v)}%`;
+      const h = Math.floor(stats.weeklyMinutes / 60);
+      const m = Math.round(stats.weeklyMinutes % 60);
+      const timeStr = stats.weeklyMinutes > 0 ? `${h}h ${m}m` : '—';
+
+      el.innerHTML = `
+        <div class="space-y-5">
+          <div>
+            <p class="text-xs text-white/45 mb-1">Weekly consistency</p>
+            <p class="text-2xl font-semibold font-mono text-white">${fmtPct(stats.weeklyPct)}</p>
+          </div>
+          <div>
+            <p class="text-xs text-white/45 mb-1">Monthly consistency</p>
+            <p class="text-2xl font-semibold font-mono text-white">${fmtPct(stats.monthlyPct)}</p>
+          </div>
+          <div>
+            <p class="text-xs text-white/45 mb-1">Time in the gym this week</p>
+            <p class="text-2xl font-semibold font-mono text-white">${timeStr}</p>
+          </div>
+        </div>`;
+    }
+
     // ── Monthly adherence calendar ──────────────────────────────────
-    // Green = a workout was logged that day. Red = something was planned
-    // for that weekday but nothing was logged (only for today/past days -
-    // future days can't be "missed" yet). Grey = no plan, nothing logged.
+    // Same red/green/grey rules as dayStatus() above, applied per date.
     function renderMonthlyCalendar(completedDates){
       const year = today.getFullYear();
       const month = today.getMonth();
@@ -429,7 +482,6 @@
       const firstDow = new Date(year, month, 1).getDay();
       const firstDowMon = (firstDow + 6) % 7; // Monday-first index
       const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const plan = loadPlan();
 
       let html = '<div class="grid grid-cols-7 mb-1">';
       WEEK_LABELS.forEach(label => {
@@ -439,18 +491,17 @@
 
       for(let i=0;i<firstDowMon;i++) html += '<div class="h-10"></div>';
 
+      let greenCount = 0, redCount = 0;
       for(let d=1; d<=daysInMonth; d++){
         const date = new Date(year, month, d);
-        const iso = isoDate(date);
         const weekdayLabel = WEEK_LABELS[(date.getDay() + 6) % 7];
-        const completed = completedDates.has(iso);
-        const planned = !!(plan[weekdayLabel] && plan[weekdayLabel].trim());
-        const future = date > today;
+        const status = dayStatus(weekdayLabel, date, completedDates);
+        if(status === 'green') greenCount++;
+        else if(status === 'red') redCount++;
 
-        let color;
-        if(completed) color = 'bg-emerald-500 text-white';
-        else if(!future && planned) color = 'bg-red-500 text-white';
-        else color = 'bg-white/15 text-white/55';
+        const color = status === 'green' ? 'bg-emerald-500 text-white'
+                    : status === 'red'   ? 'bg-red-500 text-white'
+                    : 'bg-white/15 text-white/55';
 
         const isTodayCell = date.toDateString() === today.toDateString();
         html += `<div class="h-10 flex items-center justify-center">
@@ -459,6 +510,9 @@
       }
       html += '</div>';
       document.getElementById('monthlyCal').innerHTML = html;
+
+      stats.monthlyPct = (greenCount + redCount) > 0 ? (greenCount / (greenCount + redCount)) * 100 : null;
+      renderStatsPanel();
     }
 
     async function loadMonthlyCalendar(){
@@ -522,6 +576,7 @@
     // ── Init ─────────────────────────────────────────────────────
     renderWeekStrip();
     renderPlanned();
+    renderStatsPanel();
     initHevyConnect();
     refreshAll();
   </script>

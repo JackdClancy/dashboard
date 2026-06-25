@@ -69,6 +69,7 @@ export default async function handler(req, res) {
       return {
         title: w.title,
         start_time: w.start_time,
+        end_time: w.end_time,
         created_at: w.created_at,
         volume_kg: Math.round(volumeKg * 10) / 10,
       };
