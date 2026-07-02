@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     tailwind.config = {
@@ -322,12 +323,50 @@
     document.getElementById('headerDate').textContent =
       `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}`;
 
-    // ── Data helpers ─────────────────────────────────────────────
-    const KEY = 'jd_goals';
-    function loadGoals() {
-      try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+    // ── Supabase ─────────────────────────────────────────────────
+    let supabaseClient = null;
+    let goalsCache = [];
+
+    function dbToLocal(row) {
+      return {
+        id:        row.id,
+        title:     row.title,
+        type:      row.type,
+        created:   row.created,
+        due:       row.due || null,
+        stepsDone: row.steps_done || [],
+        stepsNext: row.steps_next || [],
+      };
     }
-    function saveGoals(goals) { localStorage.setItem(KEY, JSON.stringify(goals)); }
+
+    async function initSupabase() {
+      try {
+        const cfgRes = await fetch('/api/config');
+        const cfg = await cfgRes.json();
+        if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) throw new Error('Supabase is not configured');
+        supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+        await loadGoals();
+        supabaseClient
+          .channel('goals-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, () => loadGoals())
+          .subscribe();
+      } catch (e) {
+        document.getElementById('list-long').innerHTML =
+          `<p class="text-sm text-red-400 text-center py-8">Couldn't connect: ${esc(e.message)}</p>`;
+        document.getElementById('list-short').innerHTML = '';
+      }
+    }
+
+    async function loadGoals() {
+      const { data, error } = await supabaseClient
+        .from('goals')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error) { console.error('Load goals failed:', error); return; }
+      goalsCache = (data || []).map(dbToLocal);
+      renderAll();
+      if (activeId) refreshPanel();
+    }
 
     function parseDate(str) {
       const [y, m, d] = str.split('-').map(Number);
@@ -382,9 +421,8 @@
 
     // ── Render columns ───────────────────────────────────────────
     function renderAll() {
-      const goals = loadGoals();
-      renderColumn('long',  goals.filter(g => g.type === 'long'));
-      renderColumn('short', goals.filter(g => g.type === 'short'));
+      renderColumn('long',  goalsCache.filter(g => g.type === 'long'));
+      renderColumn('short', goalsCache.filter(g => g.type === 'short'));
     }
 
     function renderColumn(type, goals) {
@@ -421,23 +459,17 @@
       document.getElementById(`title-${type}`).value = '';
       document.getElementById(`due-${type}`).value = '';
     }
-    function submitGoal(type) {
+    async function submitGoal(type) {
       const title = document.getElementById(`title-${type}`).value.trim();
-      if (!title) return;
-      const due = document.getElementById(`due-${type}`).value || null;
-      const goals = loadGoals();
-      goals.push({
-        id:        Date.now().toString(),
-        title,
-        type,
-        created:   now.toISOString().split('T')[0],
-        due,
-        stepsDone: [],
-        stepsNext: []
-      });
-      saveGoals(goals);
+      if (!title || !supabaseClient) return;
+      const due     = document.getElementById(`due-${type}`).value || null;
+      const created = new Date().toISOString().split('T')[0];
+      const { error } = await supabaseClient
+        .from('goals')
+        .insert({ title, type, created, due, steps_done: [], steps_next: [] });
+      if (error) { console.error('Insert goal failed:', error); return; }
       hideAddForm(type);
-      renderAll();
+      await loadGoals();
     }
     ['long','short'].forEach(t => {
       document.getElementById(`title-${t}`).addEventListener('keydown', e => {
@@ -456,7 +488,7 @@
     }
 
     function refreshPanel() {
-      const g = loadGoals().find(x => x.id === activeId);
+      const g = goalsCache.find(x => x.id === activeId);
       if (!g) return;
 
       document.getElementById('panelTitle').textContent = g.title;
@@ -492,14 +524,12 @@
         </div>
         ${barHtml}`;
 
-      document.getElementById('panelDueInput').addEventListener('change', e => {
-        const allGoals = loadGoals();
-        const goal = allGoals.find(x => x.id === activeId);
-        if (!goal) return;
-        goal.due = e.target.value || null;
-        saveGoals(allGoals);
-        refreshPanel();
-        renderAll();
+      document.getElementById('panelDueInput').addEventListener('change', async e => {
+        if (!supabaseClient) return;
+        const due = e.target.value || null;
+        const { error } = await supabaseClient.from('goals').update({ due }).eq('id', activeId);
+        if (error) { console.error('Update due failed:', error); return; }
+        await loadGoals();
       });
 
       // Steps
@@ -542,39 +572,37 @@
       activeId = null;
     }
 
-    function addStep(section) {
+    async function addStep(section) {
       const inputId = section === 'done' ? 'newDoneStep' : 'newNextStep';
       const input   = document.getElementById(inputId);
       const text    = input.value.trim();
-      if (!text || !activeId) return;
-      const goals = loadGoals();
-      const g = goals.find(x => x.id === activeId);
+      if (!text || !activeId || !supabaseClient) return;
+      const g = goalsCache.find(x => x.id === activeId);
       if (!g) return;
-      if (section === 'done') g.stepsDone.push(text);
-      else                    g.stepsNext.push(text);
-      saveGoals(goals);
+      const steps_done = section === 'done' ? [...g.stepsDone, text] : g.stepsDone;
+      const steps_next = section === 'next' ? [...g.stepsNext, text] : g.stepsNext;
+      const { error } = await supabaseClient.from('goals').update({ steps_done, steps_next }).eq('id', activeId);
+      if (error) { console.error('Add step failed:', error); return; }
       input.value = '';
-      refreshPanel();
-      renderAll();
+      await loadGoals();
     }
 
-    function removeStep(section, idx) {
-      const goals = loadGoals();
-      const g = goals.find(x => x.id === activeId);
-      if (!g) return;
-      if (section === 'done') g.stepsDone.splice(idx, 1);
-      else                    g.stepsNext.splice(idx, 1);
-      saveGoals(goals);
-      refreshPanel();
-      renderAll();
+    async function removeStep(section, idx) {
+      const g = goalsCache.find(x => x.id === activeId);
+      if (!g || !supabaseClient) return;
+      const steps_done = section === 'done' ? g.stepsDone.filter((_, i) => i !== idx) : g.stepsDone;
+      const steps_next = section === 'next' ? g.stepsNext.filter((_, i) => i !== idx) : g.stepsNext;
+      const { error } = await supabaseClient.from('goals').update({ steps_done, steps_next }).eq('id', activeId);
+      if (error) { console.error('Remove step failed:', error); return; }
+      await loadGoals();
     }
 
-    function deleteActiveGoal() {
-      if (!activeId || !confirm('Delete this goal?')) return;
-      const goals = loadGoals().filter(g => g.id !== activeId);
-      saveGoals(goals);
+    async function deleteActiveGoal() {
+      if (!activeId || !confirm('Delete this goal?') || !supabaseClient) return;
+      const { error } = await supabaseClient.from('goals').delete().eq('id', activeId);
+      if (error) { console.error('Delete goal failed:', error); return; }
       closeDetail();
-      renderAll();
+      await loadGoals();
     }
 
     // Enter key for step inputs
@@ -590,7 +618,7 @@
     }
 
     // ── Init ─────────────────────────────────────────────────────
-    renderAll();
+    initSupabase();
   </script>
 
 </body>

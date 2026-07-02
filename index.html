@@ -385,13 +385,6 @@
       }
     }
 
-    // ── Goals from localStorage ──────────────────────────────────
-    function renderHomeGoals() {
-      const all = (() => { try { return JSON.parse(localStorage.getItem('jd_goals')) || []; } catch { return []; } })();
-      renderGoalColumn('longGoals',  all.filter(g => g.type === 'long'),  'long-term');
-      renderGoalColumn('shortGoals', all.filter(g => g.type === 'short'), 'short-term');
-    }
-
     function renderGoalColumn(elId, goals, label) {
       const el = document.getElementById(elId);
       if (!goals.length) {
@@ -427,11 +420,11 @@
       }).join('');
     }
 
-    // ── To-Do (Supabase, synced live across every open device) ───────
+    // ── Supabase (todos + goals, synced live) ────────────────────
     let supabaseClient = null;
     let todosCache = [];
 
-    async function initSupabaseTodos() {
+    async function initSupabase() {
       const el = document.getElementById('todoList');
       try {
         const cfgRes = await fetch('/api/config');
@@ -440,17 +433,39 @@
 
         supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
-        await loadTodos();
+        await Promise.all([loadTodos(), loadHomeGoals()]);
 
         supabaseClient
           .channel('todos-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => {
-            loadTodos();
-          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => loadTodos())
+          .subscribe();
+
+        supabaseClient
+          .channel('goals-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, () => loadHomeGoals())
           .subscribe();
       } catch (e) {
         el.innerHTML = `<p class="text-sm text-red-400 text-center py-6">Couldn't connect: ${esc(e.message)}</p>`;
       }
+    }
+
+    async function loadHomeGoals() {
+      const { data, error } = await supabaseClient
+        .from('goals')
+        .select('id, title, type, created, due, steps_done, steps_next')
+        .order('created_at', { ascending: true });
+      if (error) { console.error('Load goals failed:', error); return; }
+      const goals = (data || []).map(row => ({
+        id:        row.id,
+        title:     row.title,
+        type:      row.type,
+        created:   row.created,
+        due:       row.due || null,
+        stepsDone: row.steps_done || [],
+        stepsNext: row.steps_next || [],
+      }));
+      renderGoalColumn('longGoals',  goals.filter(g => g.type === 'long'),  'long-term');
+      renderGoalColumn('shortGoals', goals.filter(g => g.type === 'short'), 'short-term');
     }
 
     async function loadTodos() {
@@ -484,11 +499,21 @@
     async function addTodo() {
       const input = document.getElementById('todoInput');
       const text  = input.value.trim();
-      if (!text) return;
+      if (!text || !supabaseClient) return;
       input.value = '';
+      input.disabled = true;
       const { error } = await supabaseClient.from('todos').insert({ title: text });
-      if (error) { console.error('Insert failed:', error); return; }
-      loadTodos();
+      input.disabled = false;
+      if (error) {
+        console.error('Insert failed:', error);
+        input.value = text;
+        const el = document.getElementById('todoList');
+        const prev = el.innerHTML;
+        el.innerHTML = `<p class="text-sm text-red-400 text-center py-6">Failed to add task: ${esc(error.message)}</p>`;
+        setTimeout(() => { el.innerHTML = prev; }, 4000);
+        return;
+      }
+      await loadTodos();
     }
 
     async function completeTodo(id) {
@@ -501,8 +526,7 @@
       if (e.key === 'Enter') addTodo();
     });
 
-    renderHomeGoals();
-    initSupabaseTodos();
+    initSupabase();
     loadHomeWorkouts();
   </script>
 
