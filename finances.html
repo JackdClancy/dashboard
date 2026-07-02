@@ -47,6 +47,35 @@
     .nav-label { transition: opacity 200ms ease, width 200ms ease; white-space: nowrap; overflow: hidden; }
     .sidebar-collapsed .nav-label { opacity: 0; width: 0; }
     #mainContent { transition: margin-left 280ms cubic-bezier(.4,0,.2,1); }
+
+    /* ── Phone layout: sidebar becomes a horizontal top bar ─────── */
+    @media (max-width: 639px) {
+      #sidebar {
+        width: 100% !important;
+        height: 4rem;
+        left: 0;
+        right: 0;
+        flex-direction: row;
+        border-right: 0;
+        border-bottom-width: 1px;
+      }
+      #sidebar > div:first-child,
+      #sidebar > div:last-child { display: none; }
+      #sidebar nav {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-evenly;
+        padding: 0 0.5rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
+      #sidebar nav > a { margin-top: 0; }
+      #sidebar .nav-label { display: none; }
+      #mainContent { margin-left: 0 !important; margin-top: 4rem; }
+      #mainContent > header { top: 4rem; }
+    }
+
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: #0c0c0e; }
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
