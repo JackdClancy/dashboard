@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Life OS bridge scheduler — runs scripts/bridge-sync.sh every 15 minutes.
+  Install (one-time, from the repo root):
+    cp scripts/com.jackdclancy.life-os-bridge.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.jackdclancy.life-os-bridge.plist
+  Logs: ~/Library/Logs/life-os-bridge.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jackdclancy.life-os-bridge</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>/Users/JackDillonClancy/dashboard/scripts/bridge-sync.sh</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/JackDillonClancy/Library/Logs/life-os-bridge.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/JackDillonClancy/Library/Logs/life-os-bridge.log</string>
+</dict>
+</plist>

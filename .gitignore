@@ -1,1 +1,15 @@
 .vercel
+
+# Local-only: Life OS spec snapshot (canonical copy lives in the Obsidian vault).
+# Public repo — keep personal spec content out of git.
+docs/
+
+# Local Supabase creds for scripts/sync-goals.mjs
+.env
+
+# Sync shadow state (machine-written)
+scripts/.sync-state-*.json
+
+# iOS Scriptable widget lives on the phone; hardcodes the anon key, keep out of the public repo
+scriptable/
+.DS_Store
