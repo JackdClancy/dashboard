@@ -451,7 +451,7 @@
 
         supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
-        await Promise.all([loadTodos(), loadHomeGoals()]);
+        await Promise.all([loadTodos(), loadHomeGoals(), loadProjects()]);
 
         supabaseClient
           .channel('todos-changes')
@@ -461,6 +461,11 @@
         supabaseClient
           .channel('goals-changes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, () => loadHomeGoals())
+          .subscribe();
+
+        supabaseClient
+          .channel('projects-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => loadProjects())
           .subscribe();
       } catch (e) {
         el.innerHTML = `<p class="text-sm text-red-400 text-center py-6">Couldn't connect: ${esc(e.message)}</p>`;
@@ -498,6 +503,38 @@
       }
       todosCache = data || [];
       renderTodos();
+    }
+
+    // Read-only tile: rows are written by the vault bridge (sync-projects.mjs),
+    // never from the app. Edit projects in the vault's 03-projects/ pointers.
+    async function loadProjects() {
+      const { data, error } = await supabaseClient
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error) { console.error('Load projects failed:', error); return; }
+      renderProjects(data || []);
+    }
+
+    function renderProjects(projects) {
+      const el = document.getElementById('projects');
+      if (!projects.length) {
+        el.className = 'flex-1 flex items-center justify-center py-10';
+        el.innerHTML = '<p class="text-sm text-white/30">No active projects.</p>';
+        return;
+      }
+      const chip = s => s === 'active' ? 'bg-emerald-500/15 text-emerald-300'
+                  : s === 'paused'     ? 'bg-amber-500/15 text-amber-300'
+                  :                      'bg-white/10 text-white/40';
+      el.className = 'flex-1 p-3 space-y-1 overflow-y-auto max-h-72';
+      el.innerHTML = projects.map(p => `
+        <div class="px-3 py-2.5 rounded-xl hover:bg-white/8 transition-colors">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-medium text-white/85">${esc(p.name)}</p>
+            <span class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0 ${chip(p.status)}">${esc(p.status)}</span>
+          </div>
+          ${p.next_action ? `<p class="text-xs text-white/45 mt-1">Next: ${esc(p.next_action)}</p>` : ''}
+        </div>`).join('');
     }
 
     function renderTodos() {

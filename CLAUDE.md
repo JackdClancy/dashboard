@@ -19,6 +19,10 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   deleted; row deleted in app → file marked archived; row with no file → exported to vault.
 - `sync-tasks.mjs` — **two-way** `~/JC AI Brain/02-tasks/tasks.md` checkbox lines ↔ `todos` table.
   Same model; each line carries an `<!-- id:… due:… -->` comment.
+- `sync-projects.mjs` — **one-way vault → app**: `.md` pointer files in the root of
+  `~/JC AI Brain/03-projects/` (frontmatter `type: project`, `status`, title heading, `**Next:**`
+  line) → `projects` table → the home page's Current Projects tile. The vault is the only author:
+  rows without a pointer file are deleted.
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.

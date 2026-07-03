@@ -9,5 +9,6 @@ NODE=/usr/local/bin/node
 echo "── bridge sync $(date '+%Y-%m-%d %H:%M:%S') ──"
 "$NODE" "$DIR/scripts/sync-goals.mjs"
 "$NODE" "$DIR/scripts/sync-tasks.mjs"
+"$NODE" "$DIR/scripts/sync-projects.mjs"
 "$NODE" "$DIR/scripts/snapshot-fitness.mjs"
 "$NODE" "$DIR/scripts/snapshot-finances.mjs"
