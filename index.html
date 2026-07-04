@@ -189,6 +189,17 @@
 
     <main class="flex-1 px-6 lg:px-8 py-6 flex flex-col gap-5">
 
+      <!-- ── Quick capture ─────────────────────────────────────── -->
+      <div class="glass rounded-3xl px-4 py-3 flex gap-2 items-center max-sm:order-1">
+        <svg class="w-4 h-4 text-white/35 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        </svg>
+        <input id="captureInput" type="text" placeholder="Capture a thought, link or idea → it lands in the vault inbox…"
+               class="flex-1 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none" />
+        <button onclick="addCapture()"
+                class="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Capture</button>
+      </div>
+
       <!-- ── Goals row ─────────────────────────────────────────── -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 max-sm:contents">
 
@@ -243,6 +254,30 @@
           <h2 class="text-sm font-semibold text-white/90">Workout Plan</h2>
         </div>
         <div id="workoutGrid" class="grid grid-cols-7 divide-x divide-white/10"></div>
+      </div>
+
+      <!-- ── Calendar + News row ───────────────────────────────── -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 max-sm:contents">
+
+        <div class="glass rounded-3xl flex flex-col max-sm:order-7">
+          <div class="px-5 py-4 border-b border-white/10">
+            <h2 class="text-sm font-semibold text-white/90">Upcoming</h2>
+          </div>
+          <div id="calendarList" class="flex-1 p-3 space-y-1 overflow-y-auto max-h-80">
+            <p class="text-sm text-white/30 text-center py-6">Loading…</p>
+          </div>
+        </div>
+
+        <div class="glass rounded-3xl flex flex-col max-sm:order-8">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <h2 class="text-sm font-semibold text-white/90">News</h2>
+            <span id="newsFetchedAt" class="text-[10px] text-white/30"></span>
+          </div>
+          <div id="newsList" class="flex-1 p-3 space-y-3 overflow-y-auto max-h-80">
+            <p class="text-sm text-white/30 text-center py-6">Loading…</p>
+          </div>
+        </div>
+
       </div>
 
     </main>
@@ -451,7 +486,7 @@
 
         supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
-        await Promise.all([loadTodos(), loadHomeGoals(), loadProjects()]);
+        await Promise.all([loadTodos(), loadHomeGoals(), loadProjects(), loadAppState()]);
 
         supabaseClient
           .channel('todos-changes')
@@ -503,6 +538,82 @@
       }
       todosCache = data || [];
       renderTodos();
+    }
+
+    // Quick capture: inserts into the captures queue; the bridge exports each
+    // row to the vault's 00-inbox/raw/ for the compile skill.
+    async function addCapture() {
+      const input = document.getElementById('captureInput');
+      const text = input.value.trim();
+      if (!text || !supabaseClient) return;
+      input.disabled = true;
+      const { error } = await supabaseClient.from('captures').insert({ content: text });
+      input.disabled = false;
+      if (error) { console.error('Capture failed:', error); return; }
+      input.value = '';
+      input.placeholder = 'Captured ✓ — synced to the vault inbox shortly';
+      setTimeout(() => { input.placeholder = 'Capture a thought, link or idea → it lands in the vault inbox…'; }, 3000);
+    }
+    document.getElementById('captureInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addCapture();
+    });
+
+    // Calendar + news tiles read app_state rows written by the bridge
+    // (sync-calendar.mjs / fetch-news.mjs). Read-only, refreshed by cron.
+    async function loadAppState() {
+      const { data, error } = await supabaseClient
+        .from('app_state')
+        .select('key, data')
+        .in('key', ['calendar', 'news']);
+      if (error) { console.error('Load app_state failed:', error); return; }
+      const byKey = Object.fromEntries((data || []).map(r => [r.key, r.data]));
+      renderCalendar(byKey.calendar);
+      renderNews(byKey.news);
+    }
+
+    function renderCalendar(cal) {
+      const el = document.getElementById('calendarList');
+      const events = cal?.events || [];
+      if (!events.length) {
+        el.innerHTML = '<p class="text-sm text-white/30 text-center py-6">Nothing coming up.</p>';
+        return;
+      }
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      el.innerHTML = events.map(ev => {
+        const d = new Date(ev.date + 'T00:00:00');
+        const label = ev.date === todayStr ? 'Today'
+          : d.toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' });
+        return `
+        <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/8 transition-colors">
+          <span class="text-xs font-medium ${ev.date === todayStr ? 'text-primary-400' : 'text-white/45'} w-24 flex-shrink-0">${esc(label)}</span>
+          <span class="text-xs text-white/35 w-12 flex-shrink-0">${ev.time ? esc(ev.time) : 'all day'}</span>
+          <span class="text-sm text-white/80 truncate">${esc(ev.title)}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function renderNews(news) {
+      const el = document.getElementById('newsList');
+      const cats = (news?.categories || []).filter(c => c.items.length);
+      if (!cats.length) {
+        el.innerHTML = '<p class="text-sm text-white/30 text-center py-6">No news yet — bridge hasn\'t run.</p>';
+        return;
+      }
+      if (news.fetched_at) {
+        const age = Math.round((Date.now() - Date.parse(news.fetched_at)) / 3600000);
+        document.getElementById('newsFetchedAt').textContent = age < 1 ? 'just now' : `${age}h ago`;
+      }
+      el.innerHTML = cats.map(c => `
+        <div>
+          <p class="text-[11px] uppercase tracking-wide text-white/35 px-3 mb-1">${esc(c.label)}</p>
+          ${c.items.map(i => `
+            ${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener"` : '<div'}
+               class="block px-3 py-1.5 rounded-lg hover:bg-white/8 transition-colors">
+              <span class="text-sm text-white/75 leading-snug">${esc(i.title)}</span>
+              <span class="text-[11px] text-white/30 ml-1.5">${esc(i.source)}</span>
+            ${i.link ? '</a>' : '</div>'}`).join('')}
+        </div>`).join('');
     }
 
     // Read-only tile: rows are written by the vault bridge (sync-projects.mjs),

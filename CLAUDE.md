@@ -26,6 +26,14 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.
+- `sync-captures.mjs` — drains the `captures` queue (home page quick-add bar) into vault
+  `00-inbox/raw/*.md` files, then deletes the rows. The vault `compile` skill processes them.
+- `sync-calendar.mjs` — parses an Apple Calendar ICS export (`CALENDAR_ICS` env, default
+  `~/Downloads/Personal.ics`; also accepts an http/webcal URL) → next 30 days →
+  `app_state` key `calendar` → the home Upcoming tile. Pragmatic RRULE subset.
+- `fetch-news.mjs` — aggregates the RSS feeds in `scripts/news-sources.json` (edit that file to
+  change sources — world / AI / Man Utd / pop culture / podcasts) → `app_state` key `news` → the
+  home News tile. Self-throttles to one fetch per `refresh_hours` (20); `FORCE_NEWS=1` overrides.
 
 DB details: `goals` and `todos` both have `updated_at` + `set_updated_at()` trigger (added
 2026-07-03 for conflict resolution). RLS is enabled but policies are fully public — the anon key

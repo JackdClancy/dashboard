@@ -1,0 +1,61 @@
+{
+  "refresh_hours": 20,
+  "categories": [
+    {
+      "key": "world",
+      "label": "World",
+      "max": 5,
+      "window_hours": 48,
+      "feeds": [
+        { "name": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml" },
+        { "name": "Reuters/AP", "url": "https://news.google.com/rss/search?q=(source:Reuters%20OR%20source:%22Associated%20Press%22)%20-sport&hl=en-US&gl=US&ceid=US:en" }
+      ]
+    },
+    {
+      "key": "ai",
+      "label": "AI",
+      "max": 5,
+      "window_hours": 48,
+      "feeds": [
+        { "name": "AI labs", "url": "https://news.google.com/rss/search?q=Anthropic%20OR%20OpenAI%20OR%20%22Claude%20AI%22%20OR%20DeepMind&hl=en-US&gl=US&ceid=US:en" },
+        { "name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/" },
+        { "name": "Verge AI", "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml" }
+      ]
+    },
+    {
+      "key": "football",
+      "label": "Premier League / Man Utd",
+      "max": 5,
+      "window_hours": 48,
+      "feeds": [
+        { "name": "BBC Man Utd", "url": "https://feeds.bbci.co.uk/sport/football/teams/manchester-united/rss.xml" },
+        { "name": "BBC Premier League", "url": "https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml" }
+      ]
+    },
+    {
+      "key": "pop",
+      "label": "Pop Culture",
+      "max": 5,
+      "window_hours": 48,
+      "feeds": [
+        { "name": "TMZ", "url": "https://www.tmz.com/rss.xml" },
+        { "name": "Variety", "url": "https://variety.com/feed/" }
+      ]
+    },
+    {
+      "key": "podcasts",
+      "label": "Podcasts & Creators",
+      "max": 8,
+      "window_hours": 168,
+      "mode": "latest_per_feed",
+      "feeds": [
+        { "name": "Modern Wisdom", "url": "https://feeds.megaphone.fm/SIXMSB5088139739" },
+        { "name": "Diary of a CEO", "url": "https://rss2.flightcast.com/xmsftuzjjykcmqwolaqn6mdn" },
+        { "name": "Joe Rogan Experience", "url": "https://feeds.megaphone.fm/GLT1412515089" },
+        { "name": "Mark Manson", "url": "https://markmanson.net/feed" },
+        { "name": "Huberman Lab", "url": "https://feeds.megaphone.fm/hubermanlab" },
+        { "name": "Lex Fridman", "url": "https://lexfridman.com/feed/podcast/" }
+      ]
+    }
+  ]
+}
