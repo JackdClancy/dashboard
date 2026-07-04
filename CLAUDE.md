@@ -26,8 +26,12 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.
-- `sync-captures.mjs` — drains the `captures` queue (home page quick-add bar) into vault
-  `00-inbox/raw/*.md` files, then deletes the rows. The vault `compile` skill processes them.
+- `sync-captures.mjs` — drains the `captures` queue (home page quick-add bar). Event-like captures
+  (parseable date + a time or appointment keyword, e.g. "Dentist appointment on the 7th at 4pm")
+  are created in **Apple Calendar** (`CALENDAR_NAME`, default "Personal") via osascript and logged
+  to the vault ledger `09-calendar/(AI) bridge-events.json`, which `sync-calendar.mjs` merges into
+  the Upcoming tile (the static ICS export won't contain them until re-exported). Everything else
+  becomes a `00-inbox/raw/*.md` file for the vault `compile` skill.
 - `sync-calendar.mjs` — parses an Apple Calendar ICS export (`CALENDAR_ICS` env, default
   `~/Downloads/Personal.ics`; also accepts an http/webcal URL) → next 30 days →
   `app_state` key `calendar` → the home Upcoming tile. Pragmatic RRULE subset.

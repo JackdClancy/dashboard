@@ -13,7 +13,7 @@
 //                       (default ~/Downloads/Personal.ics; re-export or point
 //                        at an iCloud public-share URL to keep it fresh)
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -147,6 +147,24 @@ for (const block of vevents) {
     });
   }
 }
+
+// Merge bridge-created events (capture bar → Apple Calendar writes are also
+// recorded in the vault ledger, since this ICS export is a static snapshot
+// that won't contain them until re-exported). Dedupe on date + title.
+const LEDGER_PATH = join(process.env.VAULT_DIR || join(homedir(), 'JC AI Brain'), '09-calendar', '(AI) bridge-events.json');
+try {
+  const ledger = JSON.parse(readFileSync(LEDGER_PATH, 'utf8'));
+  const cutoff = new Date(windowStart.getTime() - 2 * DAY_MS).toISOString().slice(0, 10);
+  const kept = ledger.filter(ev => ev.date >= cutoff);   // prune stale entries
+  const have = new Set(events.map(e => e.date + '|' + e.title.toLowerCase()));
+  for (const ev of kept) {
+    if (ev.date >= windowStart.toISOString().slice(0, 10) &&
+        !have.has(ev.date + '|' + ev.title.toLowerCase())) {
+      events.push({ date: ev.date, time: ev.time, title: ev.title });
+    }
+  }
+  if (kept.length !== ledger.length) writeFileSync(LEDGER_PATH, JSON.stringify(kept, null, 2));
+} catch {}
 
 events.sort((a, b) => (a.date + (a.time || '')) < (b.date + (b.time || '')) ? -1 : 1);
 const upcoming = events.slice(0, MAX_EVENTS);
