@@ -1,0 +1,158 @@
+/* ── Liquid Glass theme ──────────────────────────────────────────
+   Shared dark "liquid glass" design system for all pages, loaded AFTER
+   each page's inline <style> so it can override the base .glass/body
+   rules. visionOS-inspired: deep OLED backdrop, aurora glow, frosted
+   layered panels with specular edges, soft staggered entrances. */
+
+/* ── Base ── */
+body {
+  font-family: 'Inter', 'Fira Sans', sans-serif;
+  background: #060609;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: 0.01em;
+}
+
+/* ── Aurora backdrop (pure CSS — works on every page) ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -25%;
+  z-index: -20;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 40% at 18% 12%, rgba(10, 132, 255, 0.17), transparent 62%),
+    radial-gradient(38% 36% at 85% 24%, rgba(125, 90, 255, 0.13), transparent 64%),
+    radial-gradient(46% 42% at 52% 95%, rgba(56, 189, 248, 0.09), transparent 66%),
+    radial-gradient(28% 26% at 80% 80%, rgba(236, 72, 153, 0.06), transparent 62%);
+  animation: aurora-drift 52s ease-in-out infinite alternate;
+}
+body::after {
+  /* vignette keeps edges deep so panels float */
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -19;
+  pointer-events: none;
+  background: radial-gradient(120% 95% at 50% 8%, transparent 55%, rgba(0, 0, 0, 0.5));
+}
+@keyframes aurora-drift {
+  from { transform: translate3d(-2%, -1.5%, 0) scale(1); }
+  to   { transform: translate3d(2%, 2%, 0) scale(1.07); }
+}
+
+/* index.html's ambient blobs: slow independent drift */
+.bg-ambient { background: transparent; }
+.bg-ambient .blob { animation: blob-drift 38s ease-in-out infinite alternate; }
+.bg-ambient .blob:nth-child(2) { animation-duration: 47s; animation-delay: -12s; }
+.bg-ambient .blob:nth-child(3) { animation-duration: 56s; animation-delay: -25s; }
+@keyframes blob-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(4%, 6%, 0) scale(1.12); }
+}
+
+/* ── Liquid glass surfaces ── */
+.glass {
+  background: linear-gradient(150deg,
+    rgba(255, 255, 255, 0.085),
+    rgba(255, 255, 255, 0.035) 42%,
+    rgba(255, 255, 255, 0.02));
+  -webkit-backdrop-filter: blur(34px) saturate(185%);
+  backdrop-filter: blur(34px) saturate(185%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+  transition:
+    transform 240ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    box-shadow 240ms ease,
+    border-color 240ms ease;
+}
+.glass-strong {
+  background: linear-gradient(150deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.025) 50%,
+    rgba(255, 255, 255, 0.015));
+  -webkit-backdrop-filter: blur(40px) saturate(185%);
+  backdrop-filter: blur(40px) saturate(185%);
+}
+
+/* Cards inside the page lift softly; chrome (header/sidebar) stays put */
+main .glass:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.55),
+    0 0 32px rgba(10, 132, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ── Staggered entrance ── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+main > * { animation: rise 560ms cubic-bezier(0.22, 0.9, 0.3, 1) backwards; }
+main > *:nth-child(1) { animation-delay: 40ms; }
+main > *:nth-child(2) { animation-delay: 110ms; }
+main > *:nth-child(3) { animation-delay: 180ms; }
+main > *:nth-child(4) { animation-delay: 250ms; }
+main > *:nth-child(5) { animation-delay: 320ms; }
+main > *:nth-child(6) { animation-delay: 390ms; }
+main > *:nth-child(7) { animation-delay: 460ms; }
+main > *:nth-child(n+8) { animation-delay: 520ms; }
+#mainContent > header { animation: rise 450ms cubic-bezier(0.22, 0.9, 0.3, 1) backwards; }
+
+/* ── Micro-interactions ── */
+button { transition: transform 150ms ease, background-color 200ms ease, color 200ms ease, box-shadow 200ms ease; }
+button:active { transform: scale(0.96); }
+button, a, [onclick], label, input[type='checkbox'], select, summary { cursor: pointer; }
+
+:focus-visible {
+  outline: 2px solid rgba(10, 132, 255, 0.75);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+input[type='text'], input[type='date'], input[type='number'], textarea {
+  transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+}
+
+/* List rows (todos, projects, calendar, news) glide on hover */
+main label, main tbody tr, #projects > div, #calendarList > div, #newsList a, #newsList div > div {
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+/* Progress bars fill smoothly */
+main [style*='width'] { transition: width 700ms cubic-bezier(0.25, 0.8, 0.3, 1); }
+
+/* Nav pills */
+aside nav a, #sidebar nav a { transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease; }
+aside nav a[aria-current='page'], #sidebar nav a[aria-current='page'] {
+  box-shadow: 0 0 18px rgba(10, 132, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* Scrollbar polish */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+/* ── Phone: wide 7-day grids scroll inside their card instead of
+      dragging the whole page wider than the viewport (pre-existing
+      overflow bug — the fix lives here with the rest of the polish) ── */
+@media (max-width: 639px) {
+  #workoutGrid, #weekStrip, #plannedRow, #actualRow {
+    overflow-x: auto;
+    grid-template-columns: repeat(7, minmax(7.5rem, 1fr));
+    -webkit-overflow-scrolling: touch;
+  }
+  main { overflow-x: hidden; } /* safety net: no stray child drags the page */
+}
+
+/* ── Accessibility: stillness when asked ── */
+@media (prefers-reduced-motion: reduce) {
+  body::before, .bg-ambient .blob, main > *, #mainContent > header { animation: none !important; }
+  .glass, main .glass:hover, button { transition: none !important; transform: none !important; }
+}
