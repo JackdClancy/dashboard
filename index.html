@@ -252,10 +252,21 @@
 
       </div>
 
+      <!-- ── Recently consumed ─────────────────────────────────── -->
+      <div class="glass rounded-3xl flex flex-col max-sm:order-7">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <h2 class="text-sm font-semibold text-white/90">Recently Consumed</h2>
+          <span class="text-[10px] text-white/30">compiled from the vault</span>
+        </div>
+        <div id="consumedList" class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
+          <p class="text-sm text-white/30 text-center py-6 sm:col-span-2">Loading…</p>
+        </div>
+      </div>
+
       <!-- ── Goals row ─────────────────────────────────────────── -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 max-sm:contents">
 
-        <div class="glass rounded-3xl flex flex-col max-sm:order-7">
+        <div class="glass rounded-3xl flex flex-col max-sm:order-8">
           <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <h2 class="text-sm font-semibold text-white/90">Long-Term Goals</h2>
             <a href="goals.html" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">Manage →</a>
@@ -263,7 +274,7 @@
           <div id="longGoals" class="flex-1 p-3 space-y-1"></div>
         </div>
 
-        <div class="glass rounded-3xl flex flex-col max-sm:order-8">
+        <div class="glass rounded-3xl flex flex-col max-sm:order-9">
           <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <h2 class="text-sm font-semibold text-white/90">Short-Term Goals</h2>
             <a href="goals.html" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">Manage →</a>
@@ -487,6 +498,11 @@
           .channel('projects-changes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => loadProjects())
           .subscribe();
+
+        supabaseClient
+          .channel('app-state-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state' }, () => loadAppState())
+          .subscribe();
       } catch (e) {
         el.innerHTML = `<p class="text-sm text-red-400 text-center py-6">Couldn't connect: ${esc(e.message)}</p>`;
       }
@@ -549,11 +565,33 @@
       const { data, error } = await supabaseClient
         .from('app_state')
         .select('key, data')
-        .in('key', ['calendar', 'news']);
+        .in('key', ['calendar', 'news', 'consumed']);
       if (error) { console.error('Load app_state failed:', error); return; }
       const byKey = Object.fromEntries((data || []).map(r => [r.key, r.data]));
       renderCalendar(byKey.calendar);
       renderNews(byKey.news);
+      renderConsumed(byKey.consumed);
+    }
+
+    // Read-only tile: items are compiled vault notes (08-knowledge / 06-thoughts)
+    // mirrored by the bridge (sync-consumed.mjs).
+    function renderConsumed(consumed) {
+      const el = document.getElementById('consumedList');
+      const items = consumed?.items || [];
+      if (!items.length) {
+        el.innerHTML = '<p class="text-sm text-white/30 text-center py-6 sm:col-span-2">Nothing compiled yet — capture something and run the vault compile skill.</p>';
+        return;
+      }
+      const chip = k => k === 'thought' ? 'bg-violet-500/15 text-violet-300' : 'bg-sky-500/15 text-sky-300';
+      el.innerHTML = items.map(i => `
+        ${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener"` : '<div'}
+           class="block px-3 py-2 rounded-xl hover:bg-white/8 transition-colors">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm text-white/80 leading-snug truncate">${esc(i.title)}</p>
+            <span class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0 ${chip(i.kind)}">${esc(i.kind)}</span>
+          </div>
+          <p class="text-[11px] text-white/30 mt-0.5">${i.source ? esc(i.source) + ' · ' : ''}${esc(i.date)}</p>
+        ${i.link ? '</a>' : '</div>'}`).join('');
     }
 
     function renderCalendar(cal) {

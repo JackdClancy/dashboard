@@ -26,12 +26,35 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.
-- `sync-captures.mjs` — drains the `captures` queue (home page quick-add bar). Event-like captures
-  (parseable date + a time or appointment keyword, e.g. "Dentist appointment on the 7th at 4pm")
-  are created in **Apple Calendar** (`CALENDAR_NAME`, default "Personal") via osascript and logged
-  to the vault ledger `09-calendar/(AI) bridge-events.json`, which `sync-calendar.mjs` merges into
-  the Upcoming tile (the static ICS export won't contain them until re-exported). Everything else
-  becomes a `00-inbox/raw/*.md` file for the vault `compile` skill.
+- `sync-captures.mjs` — drains the `captures` queue (home page quick-add bar, plus the share-sheet
+  entry points below). Event-like captures (parseable date + a time or appointment keyword, e.g.
+  "Dentist appointment on the 7th at 4pm") are created in **Apple Calendar** (`CALENDAR_NAME`,
+  default "Personal") via osascript and logged to the vault ledger
+  `09-calendar/(AI) bridge-events.json`, which `sync-calendar.mjs` merges into the Upcoming tile
+  (the static ICS export won't contain them until re-exported). Everything else becomes a
+  `00-inbox/raw/*.md` file for the vault `compile` skill, with frontmatter `source:` set from the
+  row's `source` column (default `app-quick-add`).
+
+### Capture entry points (share-to-inbox)
+
+The `captures` table (`id`, `content`, `source`, `created_at`) has three writers, all landing in
+the same `sync-captures.mjs` drain above — sharing an article or an Instagram post/reel from phone
+or laptop lands it in the vault inbox the same way typing in the quick-add bar does:
+
+- **Home page quick-add bar** (`index.html`) — `source: app-quick-add` (DB default).
+- **iOS Share Sheet** — `scriptable/share-to-inbox.js`. Install in the Scriptable app (see the
+  file's header comment) and enable it under Share Sheet; then any app's Share action (Chrome,
+  Safari, Instagram) → Scriptable → Capture inserts the shared URL/text with `source: share-ios`.
+- **Laptop/desktop** — `bookmarklet/capture.md` has a one-click bookmarklet (desktop browsers have
+  no native share-sheet-to-third-party mechanism) that captures the current tab's title + URL with
+  `source: share-bookmarklet`.
+
+All three insert directly to Supabase via the public anon key (same pattern as
+`scriptable/todo-widget.js`) — no server code involved.
+- `sync-consumed.mjs` — **one-way vault → app**: scans the compile skill's output folders
+  (`08-knowledge/`, `06-thoughts/`, skipping `_`-prefixed files and `type: index` /
+  `status: archived` notes) → 8 most recent by frontmatter `updated`/`created` → `app_state` key
+  `consumed` → the home Recently Consumed tile. Reads the `Source: [label](url)` line for links.
 - `sync-calendar.mjs` — parses an Apple Calendar ICS export (`CALENDAR_ICS` env, default
   `~/Downloads/Personal.ics`; also accepts an http/webcal URL) → next 30 days →
   `app_state` key `calendar` → the home Upcoming tile. Pragmatic RRULE subset.

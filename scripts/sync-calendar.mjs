@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Feature #7a: calendar → app tile.
 //
-// Parses an ICS export (Apple Calendar) and writes the next 14 days of
+// Parses an ICS export (Apple Calendar) and writes the next 30 days of
 // events to Supabase app_state (key 'calendar') for the home page tile.
 // Handles all-day and timed events, and a pragmatic RRULE subset
 // (DAILY/WEEKLY/MONTHLY/YEARLY with INTERVAL/UNTIL/COUNT, BYDAY for weekly).
