@@ -22,7 +22,12 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
 - `sync-projects.mjs` — **one-way vault → app**: `.md` pointer files in the root of
   `~/JC AI Brain/03-projects/` (frontmatter `type: project`, `status`, title heading, `**Next:**`
   line) → `projects` table → the home page's Current Projects tile. The vault is the only author:
-  rows without a pointer file are deleted.
+  rows without a pointer file are deleted. **Auto-Next (added 2026-07-06):** before syncing, the
+  script refreshes each pointer's `**Next:**` line from the newest file in the project's Layer-2
+  `02 Decisions/` folder (folder matched by pointer basename, case-insensitive, or frontmatter
+  `folder:`), reading its `**Next:**` line or `## Next` section — so ending every decision log
+  with a `**Next:**` line keeps the dashboard cue current. A hand-edit to the pointer wins until
+  a newer decision file lands (mtime comparison).
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.

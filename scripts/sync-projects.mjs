@@ -10,11 +10,18 @@
 // optional `id` (written back on first sync). Title = first `# ` heading.
 // Next action = a line starting `**Next:**`.
 //
+// Auto-Next: if the pointer has a Layer-2 folder (same name as the pointer
+// file, case-insensitive, or frontmatter `folder:`) with a `02 Decisions/`
+// subfolder, the newest decision file's `**Next:**` line (or first line of a
+// `## Next` section) is written into the pointer — but only when the decision
+// file is newer than the pointer, so a hand-edit to the pointer wins until
+// the next decision log lands.
+//
 // Usage: node scripts/sync-projects.mjs
 // Env:   SUPABASE_URL, SUPABASE_ANON_KEY (.env), VAULT_PROJECTS_DIR (optional)
 
 import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -64,8 +71,55 @@ function parsePointer(path) {
   return {
     path, raw,
     id: fm.id || null,
+    folder: fm.folder || null,
     row: { name, status: fm.status || 'active', next_action: next },
   };
+}
+
+// Newest decision file's Next line for a pointer's Layer-2 folder, or null.
+function latestDecisionNext(p) {
+  const want = (p.folder || basename(p.path, '.md')).toLowerCase();
+  const folder = readdirSync(PROJECTS_DIR).find(d => {
+    try { return d.toLowerCase() === want && statSync(join(PROJECTS_DIR, d)).isDirectory(); }
+    catch { return false; }
+  });
+  if (!folder) return null;
+
+  let files;
+  const dir = join(PROJECTS_DIR, folder, '02 Decisions');
+  try { files = readdirSync(dir).filter(f => f.endsWith('.md')); } catch { return null; }
+
+  let newest = null;
+  for (const f of files) {
+    const path = join(dir, f);
+    const mtime = statSync(path).mtimeMs;
+    if (!newest || mtime > newest.mtime) newest = { path, mtime };
+  }
+  if (!newest) return null;
+
+  const body = readFileSync(newest.path, 'utf8');
+  let next = (body.match(/^\*\*Next:\*\*\s*(.+)$/m) || [])[1]?.trim();
+  if (!next) {
+    const section = body.match(/^## Next\s*\n+([\s\S]*?)(?=\n## |$)/m);
+    if (section) next = section[1].trim().split('\n')[0].replace(/^[-*]\s+/, '').trim();
+  }
+  return next ? { next, mtime: newest.mtime } : null;
+}
+
+// Pull the newest decision's Next into the pointer file, unless the pointer
+// was edited more recently (manual edits win until the next decision lands).
+function applyDecisionNext(p) {
+  const derived = latestDecisionNext(p);
+  if (!derived || derived.next === p.row.next_action) return;
+  if (derived.mtime <= statSync(p.path).mtimeMs) return;
+
+  const updated = /^\*\*Next:\*\*.*$/m.test(p.raw)
+    ? p.raw.replace(/^\*\*Next:\*\*.*$/m, `**Next:** ${derived.next}`)
+    : p.raw.replace(/\s*$/, `\n\n**Next:** ${derived.next}\n`);
+  writeFileSync(p.path, updated);
+  p.raw = updated;
+  p.row.next_action = derived.next;
+  console.log(`~ next-cue "${p.row.name}" ← latest decision log`);
 }
 
 const sameRow = (a, b) =>
@@ -82,6 +136,7 @@ const seen = new Set();
 let inserted = 0, updated = 0, deleted = 0, unchanged = 0;
 
 for (const p of pointers) {
+  applyDecisionNext(p);
   if (!p.id) {
     const [row] = await rest('POST', 'projects', p.row);
     writeFileSync(p.path, p.raw.replace(/^---\n/, `---\nid: ${row.id}\n`));
