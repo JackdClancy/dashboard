@@ -180,14 +180,6 @@
   <!-- ─── Main ─────────────────────────────────────────────────── -->
   <div id="mainContent" class="ml-16 min-h-screen flex flex-col">
 
-    <header class="sticky top-0 z-20 glass border-b border-white/10 px-6 py-3 flex items-center justify-between">
-      <p id="headerDate" class="text-sm font-medium text-white/55"></p>
-      <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-semibold shadow-[0_0_14px_rgba(10,132,255,0.4)]">JC</div>
-        <span class="text-sm font-medium text-white/80">Jack C.</span>
-      </div>
-    </header>
-
     <main class="flex-1 px-6 lg:px-8 py-6 flex flex-col gap-5">
 
       <!-- ── Quick capture ─────────────────────────────────────── -->
@@ -305,14 +297,6 @@
         : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>';
       document.getElementById('sidebarToggle').setAttribute('aria-label', expanded ? 'Collapse sidebar' : 'Expand sidebar');
     }
-
-    // ── Date + greeting ──────────────────────────────────────────
-    const now      = new Date();
-    const DAYS     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const MONTHS   = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-    document.getElementById('headerDate').textContent =
-      `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}`;
 
     // ── Shared helpers ───────────────────────────────────────────
     function esc(str) {
