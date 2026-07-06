@@ -24,7 +24,6 @@ body::before {
     radial-gradient(38% 36% at 85% 24%, rgba(125, 90, 255, 0.13), transparent 64%),
     radial-gradient(46% 42% at 52% 95%, rgba(56, 189, 248, 0.09), transparent 66%),
     radial-gradient(28% 26% at 80% 80%, rgba(236, 72, 153, 0.06), transparent 62%);
-  animation: aurora-drift 52s ease-in-out infinite alternate;
 }
 body::after {
   /* vignette keeps edges deep so panels float */
@@ -35,35 +34,25 @@ body::after {
   pointer-events: none;
   background: radial-gradient(120% 95% at 50% 8%, transparent 55%, rgba(0, 0, 0, 0.5));
 }
-@keyframes aurora-drift {
-  from { transform: translate3d(-2%, -1.5%, 0) scale(1); }
-  to   { transform: translate3d(2%, 2%, 0) scale(1.07); }
-}
 
-/* Promote the continuously-animated backdrops to their own compositor
-   layer up front, so their drift doesn't force a re-sample of the
-   backdrop-filter blur on every scrolling glass panel above them —
-   this pairing is what reads as janky/stuttery scrolling. */
-body::before, .bg-ambient .blob { will-change: transform; }
-
-/* index.html's ambient blobs: slow independent drift */
+/* index.html's ambient blobs: held static (see note below) */
 .bg-ambient { background: transparent; }
-.bg-ambient .blob { animation: blob-drift 38s ease-in-out infinite alternate; }
-.bg-ambient .blob:nth-child(2) { animation-duration: 47s; animation-delay: -12s; }
-.bg-ambient .blob:nth-child(3) { animation-duration: 56s; animation-delay: -25s; }
-@keyframes blob-drift {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to   { transform: translate3d(4%, 6%, 0) scale(1.12); }
-}
 
-/* ── Liquid glass surfaces ── */
+/* ── Liquid glass surfaces ──
+   Blur radius and saturate() are kept deliberately light: every glass
+   panel with backdrop-filter has to live-resample whatever is behind
+   it on every scroll frame (it can't be cached like a normal filter),
+   so panel count × blur cost × saturate cost is what was driving the
+   scroll jank. A previously-animated aurora/blob backdrop made this
+   worse by changing that "behind" content on every frame even at rest
+   — the drift animation has been removed for the same reason. */
 .glass {
   background: linear-gradient(150deg,
     rgba(255, 255, 255, 0.085),
     rgba(255, 255, 255, 0.035) 42%,
     rgba(255, 255, 255, 0.02));
-  -webkit-backdrop-filter: blur(34px) saturate(185%);
-  backdrop-filter: blur(34px) saturate(185%);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.5),
@@ -79,8 +68,8 @@ body::before, .bg-ambient .blob { will-change: transform; }
     rgba(255, 255, 255, 0.06),
     rgba(255, 255, 255, 0.025) 50%,
     rgba(255, 255, 255, 0.015));
-  -webkit-backdrop-filter: blur(40px) saturate(185%);
-  backdrop-filter: blur(40px) saturate(185%);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
 }
 
 /* Cards inside the page lift softly; chrome (header/sidebar) stays put */
@@ -165,6 +154,6 @@ aside nav a[aria-current='page'], #sidebar nav a[aria-current='page'] {
 
 /* ── Accessibility: stillness when asked ── */
 @media (prefers-reduced-motion: reduce) {
-  body::before, .bg-ambient .blob, main > *, #mainContent > header { animation: none !important; }
+  main > *, #mainContent > header { animation: none !important; }
   .glass, main .glass:hover, button { transition: none !important; transform: none !important; }
 }
