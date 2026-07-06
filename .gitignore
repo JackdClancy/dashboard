@@ -10,6 +10,9 @@ docs/
 # Sync shadow state (machine-written)
 scripts/.sync-state-*.json
 
-# iOS Scriptable widget lives on the phone; hardcodes the anon key, keep out of the public repo
+# iOS Scriptable scripts live on the phone; hardcode the anon key, keep out of the public repo
 scriptable/
+
+# Bookmarklet snippet also hardcodes the anon key, same reason
+bookmarklet/
 .DS_Store

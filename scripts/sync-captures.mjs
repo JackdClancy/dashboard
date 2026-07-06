@@ -199,7 +199,7 @@ for (const row of rows) {
     'type: capture',
     'status: raw',
     `created: ${at.toISOString().slice(0, 10)}`,
-    'source: app-quick-add',
+    `source: ${row.source || 'app-quick-add'}`,
     'tags: [inbox]',
     '---',
     '',
