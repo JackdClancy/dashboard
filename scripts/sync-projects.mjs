@@ -11,11 +11,11 @@
 // Next action = a line starting `**Next:**`.
 //
 // Auto-Next: if the pointer has a Layer-2 folder (same name as the pointer
-// file, case-insensitive, or frontmatter `folder:`) with a `02 Decisions/`
-// subfolder, the newest decision file's `**Next:**` line (or first line of a
-// `## Next` section) is written into the pointer — but only when the decision
-// file is newer than the pointer, so a hand-edit to the pointer wins until
-// the next decision log lands.
+// file, case-insensitive, or frontmatter `folder:`) with a `07 Iteration
+// Logs/` subfolder (fallback: `02 Decisions/`), the newest log file's
+// `**Next:**` line (or first line of a `## Next` section) is written into
+// the pointer — but only when the log file is newer than the pointer, so a
+// hand-edit to the pointer wins until the next iteration log lands.
 //
 // Usage: node scripts/sync-projects.mjs
 // Env:   SUPABASE_URL, SUPABASE_ANON_KEY (.env), VAULT_PROJECTS_DIR (optional)
@@ -76,7 +76,11 @@ function parsePointer(path) {
   };
 }
 
-// Newest decision file's Next line for a pointer's Layer-2 folder, or null.
+// Newest log file's Next line for a pointer's Layer-2 folder, or null.
+// Logs live in `07 Iteration Logs/`; `02 Decisions/` is the pre-2026-07-06
+// location, kept as a fallback for projects not yet migrated.
+const LOG_FOLDERS = ['07 Iteration Logs', '02 Decisions'];
+
 function latestDecisionNext(p) {
   const want = (p.folder || basename(p.path, '.md')).toLowerCase();
   const folder = readdirSync(PROJECTS_DIR).find(d => {
@@ -85,25 +89,28 @@ function latestDecisionNext(p) {
   });
   if (!folder) return null;
 
-  let files;
-  const dir = join(PROJECTS_DIR, folder, '02 Decisions');
-  try { files = readdirSync(dir).filter(f => f.endsWith('.md')); } catch { return null; }
+  for (const logFolder of LOG_FOLDERS) {
+    let files;
+    const dir = join(PROJECTS_DIR, folder, logFolder);
+    try { files = readdirSync(dir).filter(f => f.endsWith('.md')); } catch { continue; }
 
-  let newest = null;
-  for (const f of files) {
-    const path = join(dir, f);
-    const mtime = statSync(path).mtimeMs;
-    if (!newest || mtime > newest.mtime) newest = { path, mtime };
-  }
-  if (!newest) return null;
+    let newest = null;
+    for (const f of files) {
+      const path = join(dir, f);
+      const mtime = statSync(path).mtimeMs;
+      if (!newest || mtime > newest.mtime) newest = { path, mtime };
+    }
+    if (!newest) continue;
 
-  const body = readFileSync(newest.path, 'utf8');
-  let next = (body.match(/^\*\*Next:\*\*\s*(.+)$/m) || [])[1]?.trim();
-  if (!next) {
-    const section = body.match(/^## Next\s*\n+([\s\S]*?)(?=\n## |$)/m);
-    if (section) next = section[1].trim().split('\n')[0].replace(/^[-*]\s+/, '').trim();
+    const body = readFileSync(newest.path, 'utf8');
+    let next = (body.match(/^\*\*Next:\*\*\s*(.+)$/m) || [])[1]?.trim();
+    if (!next) {
+      const section = body.match(/^## Next\s*\n+([\s\S]*?)(?=\n## |$)/m);
+      if (section) next = section[1].trim().split('\n')[0].replace(/^[-*]\s+/, '').trim();
+    }
+    if (next) return { next, mtime: newest.mtime };
   }
-  return next ? { next, mtime: newest.mtime } : null;
+  return null;
 }
 
 // Pull the newest decision's Next into the pointer file, unless the pointer
