@@ -40,6 +40,12 @@ body::after {
   to   { transform: translate3d(2%, 2%, 0) scale(1.07); }
 }
 
+/* Promote the continuously-animated backdrops to their own compositor
+   layer up front, so their drift doesn't force a re-sample of the
+   backdrop-filter blur on every scrolling glass panel above them —
+   this pairing is what reads as janky/stuttery scrolling. */
+body::before, .bg-ambient .blob { will-change: transform; }
+
 /* index.html's ambient blobs: slow independent drift */
 .bg-ambient { background: transparent; }
 .bg-ambient .blob { animation: blob-drift 38s ease-in-out infinite alternate; }
@@ -138,6 +144,12 @@ aside nav a[aria-current='page'], #sidebar nav a[aria-current='page'] {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+/* Nested scroll areas (todo/calendar/news lists, sidebar nav, goals
+   column) shouldn't hand off overscroll into the page scroll once
+   they hit their own boundary — that chaining is what reads as a
+   glitchy jump mid-scroll. */
+.overflow-y-auto { overscroll-behavior: contain; }
 
 /* ── Phone: wide 7-day grids scroll inside their card instead of
       dragging the whole page wider than the viewport (pre-existing
