@@ -19,7 +19,7 @@ try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); }
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const VAULT = process.env.VAULT || join(homedir(), 'JC AI Brain');
-const MAX_ITEMS = 8;
+const MAX_ITEMS = 50; // full list for consumed.html; the home tile shows the first 8
 
 if (!SUPABASE_URL || !ANON_KEY) {
   console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
@@ -58,8 +58,13 @@ function parseNote(path, kind) {
 
   const title = (body.match(/^#\s+(.+)$/m) || [])[1]?.trim()
     || path.split('/').pop().replace(/\.md$/, '');
-  // "Source: [label](url)" line written by the compile skill, if present.
-  const src = body.match(/^Source:\s*\[([^\]]*)\]\(([^)]+)\)/m);
+  // The compile skill records provenance either as a "Source: [label](url)"
+  // line or a "## Sources" bullet list — take the first link of either.
+  let src = body.match(/^Source:\s*\[([^\]]*)\]\(([^)]+)\)/m);
+  if (!src) {
+    const section = body.match(/^## Sources?\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
+    if (section) src = section[1].match(/\[([^\]]*)\]\(([^)]+)\)/);
+  }
   // Newest of created/updated; fall back to file mtime.
   const dates = [fm.updated, fm.created]
     .map(d => (d ? Date.parse(d) : NaN)).filter(n => !isNaN(n));
@@ -70,9 +75,35 @@ function parseNote(path, kind) {
     kind,
     link: src ? src[2] : null,
     source: src ? src[1] : null,
+    essence: extractEssence(body),
+    path: path.slice(VAULT.length + 1),
     date: new Date(when).toISOString().slice(0, 10),
     _sort: when,
   };
+}
+
+// The compile skill writes an "## Essence" section (sometimes "## Takeaway").
+// Fall back to the first prose paragraph after the title.
+function extractEssence(body) {
+  let text = null;
+  for (const name of ['Essence', 'Takeaway']) {
+    const m = body.match(new RegExp(`^## ${name}\\s*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`, 'm'));
+    if (m) { text = m[1]; break; }
+  }
+  if (!text) {
+    const afterTitle = body.replace(/^[\s\S]*?^#\s+.+$/m, '');
+    text = (afterTitle.match(/\n\n(?!Source:)([^#>\-|][\s\S]*?)(?=\n\n|$)/) || [])[1] || '';
+  }
+  const plain = text
+    .split('\n')
+    .map(l => l.replace(/^>\s?/, '').trim())        // unwrap blockquotes
+    .filter(l => l && !/^(\||#)/.test(l))            // drop tables/headings
+    .join(' ')
+    .replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plain.length > 500 ? plain.slice(0, 497).trimEnd() + '…' : plain || null;
 }
 
 const items = [];

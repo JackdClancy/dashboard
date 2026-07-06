@@ -163,6 +163,14 @@
         <span class="nav-label text-sm">Goals</span>
       </a>
 
+      <a href="consumed.html"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <span class="nav-label text-sm">Consumed</span>
+      </a>
+
     </nav>
 
     <div class="border-t border-white/10 p-3">
@@ -256,7 +264,7 @@
       <div class="glass rounded-3xl flex flex-col max-sm:order-7">
         <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <h2 class="text-sm font-semibold text-white/90">Recently Consumed</h2>
-          <span class="text-[10px] text-white/30">compiled from the vault</span>
+          <a href="consumed.html" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">View all →</a>
         </div>
         <div id="consumedList" class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
           <p class="text-sm text-white/30 text-center py-6 sm:col-span-2">Loading…</p>
@@ -577,7 +585,7 @@
     // mirrored by the bridge (sync-consumed.mjs).
     function renderConsumed(consumed) {
       const el = document.getElementById('consumedList');
-      const items = consumed?.items || [];
+      const items = (consumed?.items || []).slice(0, 8); // full list lives on consumed.html
       if (!items.length) {
         el.innerHTML = '<p class="text-sm text-white/30 text-center py-6 sm:col-span-2">Nothing compiled yet — capture something and run the vault compile skill.</p>';
         return;

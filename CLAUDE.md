@@ -1,6 +1,6 @@
 # Jack's Dashboard
 
-Static multi-page site (no build step, no framework) deployed via Vercel. Pages: `index.html`, `gym.html`, `finances.html`, `goals.html`. Styling is Tailwind via CDN (`tailwind.config` inline) plus a `<style>` block of custom CSS per page; `finances.html` additionally links `finances.css`.
+Static multi-page site (no build step, no framework) deployed via Vercel. Pages: `index.html`, `gym.html`, `finances.html`, `goals.html`, `consumed.html`. Styling is Tailwind via CDN (`tailwind.config` inline) plus a `<style>` block of custom CSS per page; `finances.html` additionally links `finances.css`.
 
 > **This app is the "window" surface of Jack's Life OS.** Governing spec (local snapshot, gitignored):
 > `docs/life-os-spec-v3.md` — read it before bridge work. The vault (`~/JC AI Brain`) is the "depth"
@@ -53,8 +53,11 @@ All three insert directly to Supabase via the public anon key (same pattern as
 `scriptable/todo-widget.js`) — no server code involved.
 - `sync-consumed.mjs` — **one-way vault → app**: scans the compile skill's output folders
   (`08-knowledge/`, `06-thoughts/`, skipping `_`-prefixed files and `type: index` /
-  `status: archived` notes) → 8 most recent by frontmatter `updated`/`created` → `app_state` key
-  `consumed` → the home Recently Consumed tile. Reads the `Source: [label](url)` line for links.
+  `status: archived` notes) → 50 most recent by frontmatter `updated`/`created` → `app_state` key
+  `consumed`. Each item carries title, kind, source link (from a `Source: [label](url)` line or
+  the first link in a `## Sources` section), an essence blurb (`## Essence` / `## Takeaway` /
+  first paragraph, capped 500 chars), and the vault-relative path. Renders as the home Recently
+  Consumed tile (first 8) and the full table on `consumed.html`.
 - `sync-calendar.mjs` — parses an Apple Calendar ICS export (`CALENDAR_ICS` env, default
   `~/Downloads/Personal.ics`; also accepts an http/webcal URL) → next 30 days →
   `app_state` key `calendar` → the home Upcoming tile. Pragmatic RRULE subset.
@@ -74,4 +77,4 @@ When asked to change the "phone"/"mobile" layout without affecting desktop:
 - **Breakpoint:** under 640px (Tailwind's `sm` breakpoint) counts as phone.
 - **Tailwind utility classes:** add a `max-sm:` variant instead of changing the unprefixed class, e.g. `flex` → keep `flex`, add `max-sm:flex-col`. Never remove or edit the unprefixed/`sm:`/`md:`/`lg:` classes when the goal is phone-only — those are what desktop renders.
 - **Custom CSS (`<style>` blocks / `finances.css`):** wrap phone-only rules in `@media (max-width: 639px) { ... }`. Don't edit the base (non-media-queried) rule for a phone-only change.
-- Applies across `index.html`, `gym.html`, `finances.html`, `goals.html`.
+- Applies across `index.html`, `gym.html`, `finances.html`, `goals.html`, `consumed.html`.
