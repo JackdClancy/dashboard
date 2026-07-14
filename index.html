@@ -395,7 +395,9 @@
 
     function dayCell(label, d, contentHtml, status){
       const t = isToday(d);
-      return `<div class="p-3 text-center transition-shadow ${statusClasses(status)} ${t ? 'ring-1 ring-inset ring-primary-400/40' : ''}">
+      const plannedName = (loadPlan()[label] || '').trim();
+      return `<div class="relative p-3 pt-4 text-center transition-shadow ${statusClasses(status)} ${t ? 'ring-1 ring-inset ring-primary-400/40' : ''}">
+        ${plannedName ? `<span class="absolute top-1 left-1.5 max-w-[85%] truncate text-left text-[9px] font-medium uppercase tracking-wide text-white/30">${esc(plannedName)}</span>` : ''}
         <p class="text-sm font-bold ${t ? 'text-primary-300' : 'text-white/60'} mb-1.5">${label}</p>
         ${contentHtml}
       </div>`;
