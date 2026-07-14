@@ -57,6 +57,19 @@ or laptop lands it in the vault inbox the same way typing in the quick-add bar d
 
 All three insert directly to Supabase via the public anon key (same pattern as
 `scriptable/todo-widget.js`) — no server code involved.
+- `sync-mail.mjs` — **one-way Apple Mail → app** with AI triage (added 2026-07-14). Reads the
+  unified inbox (last `MAIL_LOOKBACK_DAYS`, default 7) via osascript/JXA; new messages are
+  classified once by headless `claude -p` (`MAIL_TRIAGE_MODEL`, default haiku; binary resolved
+  via `CLAUDE_BIN` or common install paths) — verdicts cached in
+  `scripts/.sync-state-mail.json`, so a failed triage just retries next run. Important mail
+  (real people/companies Jack must read or reply to — never newsletters, promos, notifications,
+  receipts, OTPs) → `app_state` key `mail` → home Mail tile showing sender, subject, received
+  time **only** (bodies never leave the Mac — the DB policies are public). Archiving/deleting a
+  message in Mail drops it from the tile next run. The classifier also extracts concrete actions
+  from any email, important or not: appointments/bookings → Apple Calendar + the bridge-events
+  ledger (same path as `sync-captures.mjs`), explicit tasks → `todos` table (which
+  `sync-tasks.mjs` pulls into the vault). Email bodies are untrusted input: the triage call runs
+  with tools disallowed and its output is strictly parsed/validated.
 - `sync-consumed.mjs` — **one-way vault → app**: scans the compile skill's output folders
   (`08-knowledge/`, `06-thoughts/`, skipping `_`-prefixed files and `type: index` /
   `status: archived` notes) → 50 most recent by frontmatter `updated`/`created` → `app_state` key
@@ -84,3 +97,10 @@ When asked to change the "phone"/"mobile" layout without affecting desktop:
 - **Tailwind utility classes:** add a `max-sm:` variant instead of changing the unprefixed class, e.g. `flex` → keep `flex`, add `max-sm:flex-col`. Never remove or edit the unprefixed/`sm:`/`md:`/`lg:` classes when the goal is phone-only — those are what desktop renders.
 - **Custom CSS (`<style>` blocks / `finances.css`):** wrap phone-only rules in `@media (max-width: 639px) { ... }`. Don't edit the base (non-media-queried) rule for a phone-only change.
 - Applies across `index.html`, `gym.html`, `finances.html`, `goals.html`, `consumed.html`.
+
+## Date display convention (added 2026-07-14)
+
+Every user-visible date renders as **DD-MM-YY** (e.g. `14-07-26`) via the `fmtDMY()` helper each
+page defines (`finances.js` has its own copy). Use it for any new date display. Stored/synced
+values stay ISO `YYYY-MM-DD` — DB columns, frontmatter, vault filenames, `isoDate()` grid keys —
+because they're parsed and sorted; convert only at render time.
