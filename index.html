@@ -737,7 +737,7 @@
       el.innerHTML = todosCache.map(t => `
         <label class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/8 cursor-pointer group transition-colors">
           <input type="checkbox" onchange="completeTodo('${esc(t.id)}')"
-                 class="w-4 h-4 rounded-full border-white/20 bg-white/5 cursor-pointer accent-blue-500 flex-shrink-0" />
+                 class="todo-check cursor-pointer" />
           <span class="text-sm text-white/75 group-hover:text-white transition-colors">${esc(t.title)}</span>
         </label>`).join('');
     }
@@ -763,6 +763,7 @@
     }
 
     async function completeTodo(id) {
+      await new Promise(r => setTimeout(r, 350)); // let the blue tick land before the row leaves
       const { error } = await supabaseClient.from('todos').delete().eq('id', id);
       if (error) { console.error('Delete failed:', error); return; }
       loadTodos();
