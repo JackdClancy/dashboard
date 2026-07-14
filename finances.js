@@ -11,6 +11,12 @@
     const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString();
   }
 
+  // Display format for all dates: DD-MM-YY (stored data stays ISO for sorting/sync)
+  function fmtDMY(d){
+    const p = n => String(n).padStart(2, '0');
+    return `${p(d.getDate())}-${p(d.getMonth()+1)}-${String(d.getFullYear()).slice(-2)}`;
+  }
+
   function loadAkahuCreds(){
     const raw = localStorage.getItem('akahu_creds');
     return raw ? JSON.parse(raw) : {appId:'',userToken:''};
@@ -119,7 +125,7 @@
     const list = document.getElementById('txList'); list.innerHTML='';
     tx.slice().sort((a,b)=> new Date(b.date) - new Date(a.date)).forEach(t=>{
       const el = document.createElement('div'); el.className='tx';
-      el.textContent = `${new Date(t.date).toLocaleDateString()} • ${t.category} • ${t.type==='debit'?'-':''}$${t.amount.toFixed(2)}`;
+      el.textContent = `${fmtDMY(new Date(t.date))} • ${t.category} • ${t.type==='debit'?'-':''}$${t.amount.toFixed(2)}`;
       list.appendChild(el);
     });
   }

@@ -270,9 +270,13 @@
     // ── Date header ──────────────────────────────────────────────
     const now    = new Date();
     const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    // Display format for all dates: DD-MM-YY (stored data stays ISO for sorting/sync)
+    function fmtDMY(d){
+      const p = n => String(n).padStart(2, '0');
+      return `${p(d.getDate())}-${p(d.getMonth()+1)}-${String(d.getFullYear()).slice(-2)}`;
+    }
     document.getElementById('headerDate').textContent =
-      `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}`;
+      `${DAYS[now.getDay()]}, ${fmtDMY(now)}`;
   </script>
 
   <script src="finances.js"></script>

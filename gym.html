@@ -287,7 +287,7 @@
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const today  = new Date(); today.setHours(0,0,0,0);
     document.getElementById('headerDate').textContent =
-      `${DAYS[today.getDay()]}, ${MONTHS[today.getMonth()]} ${today.getDate()} ${today.getFullYear()}`;
+      `${DAYS[today.getDay()]}, ${fmtDMY(today)}`;
 
     // ── Helpers ────────────────────────────────────────────────────
     function esc(str){
@@ -298,7 +298,12 @@
       return `${y}-${m}-${day}`;
     }
     function isToday(d){ return d.toDateString() === today.toDateString(); }
-    function fmtShort(d){ return d.toLocaleDateString('en-US', { month:'short', day:'numeric' }); }
+    // Display format for all dates: DD-MM-YY (stored data stays ISO for sorting/sync)
+    function fmtDMY(d){
+      const p = n => String(n).padStart(2, '0');
+      return `${p(d.getDate())}-${p(d.getMonth()+1)}-${String(d.getFullYear()).slice(-2)}`;
+    }
+    function fmtShort(d){ return fmtDMY(d); }
 
     // ── Current week, Monday → Sunday ─────────────────────────────
     const WEEK_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];

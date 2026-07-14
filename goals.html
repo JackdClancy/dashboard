@@ -355,9 +355,15 @@
     // ── Date header ──────────────────────────────────────────────
     const now    = new Date();
     const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    // Display format for all dates: DD-MM-YY (stored data stays ISO for sorting/sync)
+    function fmtDMY(d){
+      const dt = d instanceof Date ? d : new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(d)) ? d + 'T00:00:00' : d);
+      if (isNaN(dt)) return String(d);
+      const p = n => String(n).padStart(2, '0');
+      return `${p(dt.getDate())}-${p(dt.getMonth()+1)}-${String(dt.getFullYear()).slice(-2)}`;
+    }
     document.getElementById('headerDate').textContent =
-      `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}`;
+      `${DAYS[now.getDay()]}, ${fmtDMY(now)}`;
 
     // ── Supabase ─────────────────────────────────────────────────
     let supabaseClient = null;
@@ -441,7 +447,7 @@
       const label  = daysLeft < 0  ? `${Math.abs(daysLeft)} days overdue`
                    : daysLeft === 0 ? 'Due today'
                    : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
-      const dueFmt = parseDate(goal.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const dueFmt = fmtDMY(parseDate(goal.due));
       return `
         <div class="mt-3">
           <div class="flex items-center justify-between mb-1.5">
