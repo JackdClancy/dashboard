@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jack's Dashboard</title>
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="/apple-touch-icon.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -18,8 +19,8 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'Fira Sans', 'sans-serif'],
-            mono: ['Fira Code', 'monospace'],
+            sans: ['Geist', 'Inter', 'sans-serif'],
+            mono: ['Geist Mono', 'Fira Code', 'monospace'],
           },
           colors: {
             primary: {
@@ -43,7 +44,7 @@
       * { transition: none !important; animation: none !important; }
     }
 
-    body { font-family: 'Fira Sans', sans-serif; background: #09090b; }
+    body { font-family: 'Geist', sans-serif; background: #09090b; }
 
     #sidebar { transition: width 280ms cubic-bezier(.4,0,.2,1); }
     .sidebar-expanded  { width: 240px; }
@@ -245,7 +246,7 @@
               <h2 class="text-sm font-semibold text-white/90">Upcoming</h2>
             </div>
             <div id="calendarList" class="p-3 space-y-1">
-              <p class="text-sm text-white/30 text-center py-6">Loading…</p>
+              <p class="text-sm text-white/30 text-center py-6 loading-pulse">Loading…</p>
             </div>
           </div>
 
@@ -256,7 +257,7 @@
               <span class="text-[10px] text-white/30">important only · archive in Mail to clear</span>
             </div>
             <div id="mailList" class="p-3 space-y-1 overflow-y-auto max-h-64">
-              <p class="text-sm text-white/30 text-center py-6">Loading…</p>
+              <p class="text-sm text-white/30 text-center py-6 loading-pulse">Loading…</p>
             </div>
           </div>
 
@@ -268,7 +269,7 @@
             <span id="newsFetchedAt" class="text-[10px] text-white/30"></span>
           </div>
           <div id="newsList" class="flex-1 p-3 space-y-3 overflow-y-auto max-h-80">
-            <p class="text-sm text-white/30 text-center py-6">Loading…</p>
+            <p class="text-sm text-white/30 text-center py-6 loading-pulse">Loading…</p>
           </div>
         </div>
 
@@ -281,7 +282,7 @@
           <a href="consumed.html" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">View all →</a>
         </div>
         <div id="consumedList" class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
-          <p class="text-sm text-white/30 text-center py-6 sm:col-span-2">Loading…</p>
+          <p class="text-sm text-white/30 text-center py-6 sm:col-span-2 loading-pulse">Loading…</p>
         </div>
       </div>
 
@@ -612,7 +613,7 @@
       const el = document.getElementById('mailList');
       const items = mail?.items || [];
       if (!items.length) {
-        el.innerHTML = '<p class="text-sm text-white/30 text-center py-6">No important mail. 🎉</p>';
+        el.innerHTML = '<p class="text-sm text-white/30 text-center py-6">No important mail — inbox handled.</p>';
         return;
       }
       const todayKey = new Date().toDateString();

@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gym — Jack's Dashboard</title>
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="/apple-touch-icon.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -17,8 +18,8 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'Fira Sans', 'sans-serif'],
-            mono: ['Fira Code', 'monospace'],
+            sans: ['Geist', 'Inter', 'sans-serif'],
+            mono: ['Geist Mono', 'Fira Code', 'monospace'],
           },
           colors: {
             primary: {
@@ -41,7 +42,7 @@
     @media (prefers-reduced-motion: reduce) {
       * { transition: none !important; animation: none !important; }
     }
-    body { font-family: 'Fira Sans', sans-serif; background: #09090b; }
+    body { font-family: 'Geist', sans-serif; background: #09090b; }
     #sidebar { transition: width 280ms cubic-bezier(.4,0,.2,1); }
     .sidebar-expanded  { width: 240px; }
     .sidebar-collapsed { width: 64px; }

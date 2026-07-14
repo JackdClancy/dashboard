@@ -6,11 +6,15 @@
 
 /* ── Base ── */
 body {
-  font-family: 'Inter', 'Fira Sans', sans-serif;
+  font-family: 'Geist', 'Inter', -apple-system, sans-serif;
   background: #060609;
   -webkit-font-smoothing: antialiased;
-  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums; /* data columns line up */
 }
+
+::selection { background: rgba(10, 132, 255, 0.4); color: #fff; }
+
+h1, h2, h3 { text-wrap: balance; letter-spacing: -0.015em; }
 
 /* ── Aurora backdrop (pure CSS — works on every page) ── */
 body::before {
@@ -35,6 +39,20 @@ body::after {
   background: radial-gradient(120% 95% at 50% 8%, transparent 55%, rgba(0, 0, 0, 0.5));
 }
 
+/* Film grain over everything: breaks the flat digital look. A static
+   texture layer — unlike backdrop-filter it composites once, so it
+   doesn't feed the scroll-jank problem described below. */
+html::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
 /* index.html's ambient blobs: held static (see note below) */
 .bg-ambient { background: transparent; }
 
@@ -55,7 +73,7 @@ body::after {
   backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 12px 40px rgba(4, 8, 20, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.15),
     inset 0 -1px 0 rgba(255, 255, 255, 0.03);
   transition:
@@ -77,7 +95,7 @@ main .glass:hover {
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.55),
+    0 20px 60px rgba(4, 8, 20, 0.6),
     0 0 32px rgba(10, 132, 255, 0.07),
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     inset 0 -1px 0 rgba(255, 255, 255, 0.03);
@@ -114,10 +132,14 @@ input[type='text'], input[type='date'], input[type='number'], textarea {
   transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
 }
 
-/* List rows (todos, projects, calendar, news) glide on hover */
-main label, main tbody tr, #projects > div, #calendarList > div, #newsList a, #newsList div > div {
+/* List rows (todos, projects, calendar, news, mail) glide on hover */
+main label, main tbody tr, #projects > div, #calendarList > div, #newsList a, #newsList div > div, #mailList > div {
   transition: background-color 160ms ease, transform 160ms ease;
 }
+
+/* "Loading…" placeholders breathe until data lands */
+@keyframes pulseSoft { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.15; } }
+.loading-pulse { animation: pulseSoft 1.8s ease-in-out infinite; }
 
 /* Progress bars fill smoothly */
 main [style*='width'] { transition: width 700ms cubic-bezier(0.25, 0.8, 0.3, 1); }

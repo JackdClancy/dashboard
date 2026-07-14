@@ -50,7 +50,7 @@
 }
 #summary span {
   color: #fff; font-weight: 600;
-  font-family: 'Fira Code', monospace;
+  font-family: 'Geist Mono', 'Fira Code', monospace;
 }
 
 #txList { max-height: 220px; overflow-y: auto; }
@@ -67,7 +67,7 @@
 .category > div:first-child { font-size: 0.85rem; color: rgba(255,255,255,0.75); min-width: 100px; }
 .bar { height: 10px; background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; flex: 1; }
 .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-light), var(--accent)); border-radius: 6px; }
-.category > div:last-child { font-size: 0.8rem; font-family: 'Fira Code', monospace; color: rgba(255,255,255,0.55); min-width: 70px; text-align: right; }
+.category > div:last-child { font-size: 0.8rem; font-family: 'Geist Mono', 'Fira Code', monospace; color: rgba(255,255,255,0.55); min-width: 70px; text-align: right; }
 
 /* Savings goal */
 #savings input[type="number"] { width: 100px; }
@@ -110,7 +110,7 @@ input[type="number"] {
   border-radius: 10px;
   color: #fff;
   font-size: 0.85rem;
-  font-family: 'Fira Sans', sans-serif;
+  font-family: 'Geist', sans-serif;
 }
 input::placeholder { color: rgba(255,255,255,0.3); }
 input:focus {
@@ -128,7 +128,7 @@ button {
   cursor: pointer;
   font-size: 0.8rem;
   font-weight: 500;
-  font-family: 'Fira Sans', sans-serif;
+  font-family: 'Geist', sans-serif;
   box-shadow: 0 4px 16px rgba(10,132,255,0.35);
   transition: opacity 150ms ease;
 }
