@@ -16,3 +16,7 @@ scriptable/
 # Bookmarklet snippet also hardcodes the anon key, same reason
 bookmarklet/
 .DS_Store
+
+# Installed agent skills (third-party content, restorable via skills-lock.json + npx skills)
+.agents/
+.claude/skills/
