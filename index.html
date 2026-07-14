@@ -200,17 +200,6 @@
                 class="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Capture</button>
       </div>
 
-      <!-- ── Mail (important only, mirrored by sync-mail.mjs) ──── -->
-      <div class="glass rounded-3xl flex flex-col max-sm:order-2">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <h2 class="text-sm font-semibold text-white/90">Mail</h2>
-          <span class="text-[10px] text-white/30">important only · archive in Mail to clear</span>
-        </div>
-        <div id="mailList" class="p-3 space-y-1 overflow-y-auto max-h-64">
-          <p class="text-sm text-white/30 text-center py-6">Loading…</p>
-        </div>
-      </div>
-
       <!-- ── Todo + Projects row ───────────────────────────────── -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 max-sm:contents">
 
@@ -249,13 +238,28 @@
       <!-- ── Calendar + News row ───────────────────────────────── -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 max-sm:contents">
 
-        <div class="glass rounded-3xl flex flex-col max-sm:order-5">
-          <div class="px-5 py-4 border-b border-white/10">
-            <h2 class="text-sm font-semibold text-white/90">Upcoming</h2>
+        <div class="flex flex-col gap-5 max-sm:contents">
+
+          <div class="glass rounded-3xl max-sm:order-5">
+            <div class="px-5 py-4 border-b border-white/10">
+              <h2 class="text-sm font-semibold text-white/90">Upcoming</h2>
+            </div>
+            <div id="calendarList" class="p-3 space-y-1">
+              <p class="text-sm text-white/30 text-center py-6">Loading…</p>
+            </div>
           </div>
-          <div id="calendarList" class="flex-1 p-3 space-y-1 overflow-y-auto max-h-80">
-            <p class="text-sm text-white/30 text-center py-6">Loading…</p>
+
+          <!-- ── Mail (important only, mirrored by sync-mail.mjs) ─ -->
+          <div class="glass rounded-3xl flex flex-col flex-1 max-sm:order-5">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <h2 class="text-sm font-semibold text-white/90">Mail</h2>
+              <span class="text-[10px] text-white/30">important only · archive in Mail to clear</span>
+            </div>
+            <div id="mailList" class="p-3 space-y-1 overflow-y-auto max-h-64">
+              <p class="text-sm text-white/30 text-center py-6">Loading…</p>
+            </div>
           </div>
+
         </div>
 
         <div class="glass rounded-3xl flex flex-col max-sm:order-6">
@@ -646,7 +650,7 @@
 
     function renderCalendar(cal) {
       const el = document.getElementById('calendarList');
-      const events = cal?.events || [];
+      const events = (cal?.events || []).slice(0, 3); // next 3 only — Mail sits below
       if (!events.length) {
         el.innerHTML = '<p class="text-sm text-white/30 text-center py-6">Nothing coming up.</p>';
         return;
