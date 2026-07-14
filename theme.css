@@ -198,11 +198,15 @@ aside nav a[aria-current='page'], #sidebar nav a[aria-current='page'] {
       dragging the whole page wider than the viewport (pre-existing
       overflow bug — the fix lives here with the rest of the polish) ── */
 @media (max-width: 639px) {
-  #workoutGrid, #weekStrip, #plannedRow, #actualRow {
+  #workoutGrid {
     overflow-x: auto;
     grid-template-columns: repeat(7, minmax(7.5rem, 1fr));
     -webkit-overflow-scrolling: touch;
   }
+  /* gym: the combined This Week tile (strip + planned + actual) scrolls as one unit */
+  #weekScroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #weekScroll > * { min-width: 52.5rem; } /* 7 × 7.5rem columns */
+  #weekStrip, #plannedRow, #actualRow { grid-template-columns: repeat(7, minmax(7.5rem, 1fr)); }
   main { overflow-x: hidden; } /* safety net: no stray child drags the page */
 }
 
