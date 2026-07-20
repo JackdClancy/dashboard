@@ -32,14 +32,51 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.
+- `calendar-lib.mjs` — shared calendar data access (added 2026-07-20). Reads and writes are
+  deliberately split across two mechanisms, because Calendar.app's JXA scripting bridge turned out
+  to be too slow for bulk reads: `readUpcomingEvents()` parses the ICS export + bridge-events
+  ledger (same source `sync-calendar.mjs` uses for the tile) — fast, plain text. Jack's
+  `CALENDAR_ICS` is a live iCloud public-share `webcal://` link (Calendar.app → Personal → Share
+  Calendar → Public Calendar), so no manual re-export is needed — but that publish feed is its own
+  eventually-consistent snapshot, not instant: observed both a multi-minute lag before a new event
+  appeared, and (rarer) a stale/orphaned entry under an old uid for an event that had already
+  changed locally. Treat it as "usually fresh within a few minutes," not "always current to the
+  second" — only the ICS-based read side has this lag; `addEvent`/`updateEvent`/`deleteEvent`
+  always act on Calendar.app's real, current state immediately. `addEvent`,
+  `updateEvent`, `deleteEvent` go through Calendar.app via osascript — unavoidable for actually
+  mutating the calendar, but measured at 40s-150s+ per `updateEvent`/`deleteEvent` call against
+  Jack's ~550-event Personal calendar (Calendar.app's `whose()` predicate evaluation scans the
+  *entire* event history, not just the matches; `addEvent`/push is fast, a few seconds, since it
+  doesn't scan). Their osascript timeout is set to 5 minutes on purpose — killing the process
+  mid-edit doesn't cleanly abort it, it can leave a **partially-applied** edit (observed directly:
+  title changed, time didn't, because the process was killed between the two property writes). Use
+  `updateEvent`/`deleteEvent` only for single, deliberate mutations, never in a loop. `findDuplicate`
+  (same-day + fuzzy-title match) runs against the `readUpcomingEvents()` list — used as a pre-add
+  dedupe check and to resolve which existing event a natural-language edit/cancel refers to.
+  `sync-captures.mjs`, `sync-mail.mjs`, and `calendar-manager.mjs` all import this instead of
+  building their own AppleScript.
 - `sync-captures.mjs` — drains the `captures` queue (home page quick-add bar, plus the share-sheet
-  entry points below). Event-like captures (parseable date + a time or appointment keyword, e.g.
-  "Dentist appointment on the 7th at 4pm") are created in **Apple Calendar** (`CALENDAR_NAME`,
-  default "Personal") via osascript and logged to the vault ledger
-  `09-calendar/(AI) bridge-events.json`, which `sync-calendar.mjs` merges into the Upcoming tile
-  (the static ICS export won't contain them until re-exported). Everything else becomes a
-  `00-inbox/raw/*.md` file for the vault `compile` skill, with frontmatter `source:` set from the
-  row's `source` column (default `app-quick-add`).
+  entry points below). **Calendar intent (reworked 2026-07-20):** each capture is classified once
+  by headless `claude -p` (`CAPTURE_TRIAGE_MODEL`, default haiku), given the next 45 days of
+  existing events (`readUpcomingEvents()`) as context, into `add` (a new event — e.g. "Dentist
+  appointment on the 7th at 4pm"), `update` (e.g. "move my dentist appt to 4pm" — only acted on
+  when the model points at one specific existing event copied from that context), `delete` (e.g.
+  "cancel my dentist appointment"), or `none`. `add` is skipped if `findDuplicate`
+  (`calendar-lib.mjs`) finds a same-day, similar-title event already on the calendar — the fix for
+  mail/captures creating duplicate events. Calendar writes go through `calendar-lib.mjs` and are
+  logged to the vault ledger `09-calendar/(AI) bridge-events.json` (update/delete edit or remove
+  the matching ledger entry), which `readUpcomingEvents()` (and so `sync-calendar.mjs`'s Upcoming
+  tile) picks up next run. If classification fails (e.g. `claude` CLI unavailable) the
+  whole queue is left untouched and retried next run. `none` → a `00-inbox/raw/*.md` file for the
+  vault `compile` skill, with frontmatter `source:` set from the row's `source` column (default
+  `app-quick-add`). **Video enrichment (added 2026-07-14):**
+  captures containing a TikTok / Instagram reel / YouTube Shorts URL get a
+  `## Video content (auto-extracted)` block appended — uploader, caption, and a transcript of the
+  video's speech via `scripts/fetch-video.mjs` (yt-dlp + ffmpeg + local whisper-cli; model at
+  `scripts/.whisper/ggml-base.en.bin`, gitignored; all local, nothing uploaded). Extraction
+  failure never blocks the capture — the file gets a retry-command note instead. Optional
+  `YTDLP_COOKIES_BROWSER=safari|chrome` in `.env` if Instagram starts login-walling anonymous
+  access.
 
 ### Capture entry points (share-to-inbox)
 
@@ -66,7 +103,8 @@ All three insert directly to Supabase via the public anon key (same pattern as
   receipts, OTPs) → `app_state` key `mail` → home Mail tile showing sender, subject, received
   time **only** (bodies never leave the Mac — the DB policies are public). Archiving/deleting a
   message in Mail drops it from the tile next run. The classifier also extracts concrete actions
-  from any email, important or not: appointments/bookings → Apple Calendar + the bridge-events
+  from any email, important or not: appointments/bookings → Apple Calendar (via `calendar-lib.mjs`,
+  with the same `findDuplicate` pre-add dedupe check as `sync-captures.mjs`) + the bridge-events
   ledger (same path as `sync-captures.mjs`), explicit tasks → `todos` table (which
   `sync-tasks.mjs` pulls into the vault). Email bodies are untrusted input: the triage call runs
   with tools disallowed and its output is strictly parsed/validated.
@@ -77,9 +115,17 @@ All three insert directly to Supabase via the public anon key (same pattern as
   the first link in a `## Sources` section), an essence blurb (`## Essence` / `## Takeaway` /
   first paragraph, capped 500 chars), and the vault-relative path. Renders as the home Recently
   Consumed tile (first 8) and the full table on `consumed.html`.
-- `sync-calendar.mjs` — parses an Apple Calendar ICS export (`CALENDAR_ICS` env, default
-  `~/Downloads/Personal.ics`; also accepts an http/webcal URL) → next 30 days →
-  `app_state` key `calendar` → the home Upcoming tile. Pragmatic RRULE subset.
+- `sync-calendar.mjs` — thin wrapper around `calendar-lib.mjs`'s `readUpcomingEvents()` (ICS export,
+  `CALENDAR_ICS` env, default `~/Downloads/Personal.ics`, also accepts an http/webcal URL, + the
+  bridge-events ledger; pragmatic RRULE subset) → next 30 days → `app_state` key `calendar` → the
+  home Upcoming tile.
+- `calendar-manager.mjs` — manual CLI (added 2026-07-20) for organizing Apple Calendar directly;
+  not part of `bridge-sync.sh` — every mutation is something Jack runs deliberately, never
+  automatic. `list [--days N]` and `dedupe [--days N] [--apply]` read via `readUpcomingEvents()`
+  (fast). `add "<title>" <date> [time]` (dedupe-checked, `--force` to override), `edit <uid>
+  [--title] [--date] [--time]`, `remove <uid>` (dry-run unless `--yes`) write via Calendar.app —
+  `edit`/`remove` can take a couple of minutes each (see `calendar-lib.mjs` above). `dedupe --apply`
+  deletes all but the earliest-starting event per duplicate group. Built on `calendar-lib.mjs`.
 - `fetch-news.mjs` — aggregates the RSS feeds in `scripts/news-sources.json` (edit that file to
   change sources — world / AI / Man Utd / pop culture / podcasts) → `app_state` key `news` → the
   home News tile. Self-throttles to one fetch per `refresh_hours` (20); `FORCE_NEWS=1` overrides.

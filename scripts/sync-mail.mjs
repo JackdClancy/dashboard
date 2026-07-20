@@ -29,6 +29,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { readUpcomingEvents, addEvent, findDuplicate } from './calendar-lib.mjs';
 
 try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
 
@@ -143,27 +144,7 @@ ${JSON.stringify(emails, null, 1)}`;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/, HHMM = /^\d{2}:\d{2}$/;
 
-function addToAppleCalendar(title, date, time) {
-  const [h, m] = time ? time.split(':').map(Number) : [0, 0];
-  const [y, mo, d] = date.split('-').map(Number);
-  const durationMin = time ? 60 : 24 * 60;
-  const script = `
-set d to current date
-set year of d to ${y}
-set month of d to ${mo}
-set day of d to ${d}
-set hours of d to ${h}
-set minutes of d to ${m}
-set seconds of d to 0
-tell application "Calendar"
-  tell calendar "${CALENDAR_NAME.replace(/"/g, '\\"')}"
-    make new event with properties {summary:"${title.replace(/"/g, '\\"')}", start date:d, end date:d + (${durationMin} * minutes)${time ? '' : ', allday event:true'}}
-  end tell
-end tell`;
-  execFileSync('osascript', ['-e', script], { timeout: 30000 });
-}
-
-async function runActions(actions, email) {
+async function runActions(actions, email, existingEvents) {
   const done = [];
   for (const a of (actions || []).slice(0, 2)) {
     try {
@@ -171,12 +152,18 @@ async function runActions(actions, email) {
       if (!title) continue;
       if (a.type === 'event' && ISO_DATE.test(a.date || '')) {
         const time = HHMM.test(a.time || '') ? a.time : null;
-        // Ledger first — the dashboard must show it even if Calendar.app fails.
+        const dup = findDuplicate({ title, date: a.date, candidates: existingEvents });
+        if (dup) {
+          done.push(`⏭ skipped "${title}" ${a.date} — duplicate of existing "${dup.title}"`);
+          continue;
+        }
+        const { uid } = addEvent({ calendarName: CALENDAR_NAME, title, date: a.date, time });
+        // Ledger so the dashboard shows it immediately (ahead of the next ICS re-export).
         mkdirSync(join(VAULT_DIR, '09-calendar'), { recursive: true });
         const ledger = existsSync(EVENTS_PATH) ? JSON.parse(readFileSync(EVENTS_PATH, 'utf8')) : [];
-        ledger.push({ title, date: a.date, time, captured: `email: ${email.subject}`, created_at: new Date().toISOString() });
+        ledger.push({ uid, title, date: a.date, time, captured: `email: ${email.subject}`, created_at: new Date().toISOString() });
         writeFileSync(EVENTS_PATH, JSON.stringify(ledger, null, 2));
-        addToAppleCalendar(title, a.date, time);
+        existingEvents.push({ uid, title, date: a.date, time, allDay: !time });
         done.push(`📅 "${title}" ${a.date}${time ? ' ' + time : ''}`);
       } else if (a.type === 'todo') {
         await rest('POST', 'todos', {
@@ -214,6 +201,12 @@ if (toTriage.length) {
     console.log('sync-mail: claude CLI not found — set CLAUDE_BIN in .env. Skipping triage.');
   } else {
     console.log(`sync-mail: triaging ${toTriage.length} new message(s) with ${MODEL}…`);
+    let existingEvents = [];
+    try {
+      existingEvents = await readUpcomingEvents({ horizonDays: 45 });
+    } catch (e) {
+      console.log(`  ! can't read upcoming events for dedupe check: ${e.message.split('\n')[0]}`);
+    }
     try {
       const verdicts = triage(toTriage);
       const byId = new Map(verdicts.map(v => [v.id, v]));
@@ -221,7 +214,7 @@ if (toTriage.length) {
         const v = byId.get(email.id);
         if (!v) continue; // not in the reply → retry next run
         state.seen[email.id] = { v: v.important ? 'important' : 'skip', r: email.received };
-        const acted = await runActions(v.actions, email);
+        const acted = await runActions(v.actions, email, existingEvents);
         if (v.important || acted.length) {
           console.log(`  ${v.important ? '★' : '·'} ${email.sender} — "${email.subject}"${acted.length ? '\n      ' + acted.join('\n      ') : ''}`);
         }

@@ -2,26 +2,39 @@
 // Feature #5 (entry point): app quick-add → vault inbox / Apple Calendar.
 //
 // Drains the `captures` table (home page capture bar). Each capture is
-// routed:
-//   - EVENT-LIKE ("Dentist appointment on the 7th at 4pm") → created in
-//     Apple Calendar via osascript AND appended to the vault's bridge-events
-//     ledger (09-calendar/(AI) bridge-events.json) so the dashboard's
-//     Upcoming tile shows it immediately (sync-calendar.mjs merges it).
-//     Routed only when a parseable date comes with a time or an
-//     appointment-ish keyword — ambiguous items stay in the inbox.
-//   - EVERYTHING ELSE → a markdown file in 00-inbox/raw/ for the compile
-//     skill, exactly as before.
-// Rows are deleted only after the file/event is safely written.
+// classified once by headless `claude -p` (CAPTURE_TRIAGE_MODEL, default
+// haiku), given the next 45 days of existing Apple Calendar events as
+// context, into one of:
+//   - "add"    — a NEW event ("Dentist appointment on the 7th at 4pm") →
+//                created in Apple Calendar (scripts/calendar-lib.mjs) and
+//                appended to the vault's bridge-events ledger
+//                (09-calendar/(AI) bridge-events.json) so the dashboard's
+//                Upcoming tile shows it immediately (sync-calendar.mjs
+//                merges it). Skipped if it looks like a duplicate of an
+//                event already on the calendar.
+//   - "update" — changes an EXISTING event ("move my dentist appt to 4pm").
+//                Only acted on when the model points at a specific existing
+//                event (match_uid) copied from the context it was given.
+//   - "delete" — cancels an EXISTING event ("cancel my dentist appointment").
+//                Same match_uid requirement as update.
+//   - "none"   — everything else → a markdown file in 00-inbox/raw/ for the
+//                compile skill, exactly as before.
+// Rows are deleted only after the calendar/file write is safely applied.
+// If classification itself fails (claude CLI unavailable, etc.) the whole
+// queue is left untouched and retried on the next bridge run.
 //
 // Usage: node scripts/sync-captures.mjs
 // Env:   SUPABASE_URL, SUPABASE_ANON_KEY (.env), VAULT_DIR (optional),
-//        CALENDAR_NAME (Apple Calendar target, default "Personal")
+//        CALENDAR_NAME (Apple Calendar target, default "Personal"),
+//        CAPTURE_TRIAGE_MODEL (default haiku), CLAUDE_BIN (path to claude CLI)
 
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { VIDEO_URL_RE, fetchVideoContent, toMarkdown as videoMarkdown } from './fetch-video.mjs';
+import { readUpcomingEvents, addEvent, updateEvent, deleteEvent, findDuplicate } from './calendar-lib.mjs';
 
 try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
 
@@ -31,11 +44,16 @@ const VAULT_DIR = process.env.VAULT_DIR || join(homedir(), 'JC AI Brain');
 const RAW_DIR = join(VAULT_DIR, '00-inbox', 'raw');
 const EVENTS_PATH = join(VAULT_DIR, '09-calendar', '(AI) bridge-events.json');
 const CALENDAR_NAME = process.env.CALENDAR_NAME || 'Personal';
+const MODEL = process.env.CAPTURE_TRIAGE_MODEL || 'haiku';
 
 if (!SUPABASE_URL || !ANON_KEY) {
   console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
   process.exit(1);
 }
+
+const CLAUDE_BIN = process.env.CLAUDE_BIN
+  || [join(homedir(), '.local/bin/claude'), '/usr/local/bin/claude', '/opt/homebrew/bin/claude']
+    .find(existsSync);
 
 async function rest(method, path, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -51,101 +69,67 @@ async function rest(method, path, body) {
   return res.status === 204 ? null : res.json();
 }
 
-// ── Natural-language event parsing (deliberately conservative) ────
+// ── Calendar-intent classification (headless claude, one call per run) ──
 
-const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-const EVENT_WORDS = /\b(appointment|appt|meeting|dentist|doctor|gp|physio|interview|flight|dinner|lunch|brunch|coffee|catch\s?up|game|match|booking|booked|reservation|party|bbq|concert|gig|festival|wedding|birthday)\b/i;
+function classifyCaptures(rows, existingEvents) {
+  const today = new Date();
+  const prompt = `You are a calendar-and-capture triage assistant for Jack. Today is ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString('en-NZ', { weekday: 'long' })}), timezone Pacific/Auckland.
 
-// Returns { date: Date, hasTime, title } or null if no confident parse.
-function parseEvent(content) {
-  const text = content.toLowerCase();
-  const now = new Date();
-  let matched = [];
+Each row below is a short note Jack typed into a quick-capture bar. For each row, decide "calendar_action":
+- "add" — the note describes a NEW event with a parseable date. A bare date alone isn't enough — it needs a time or an obvious appointment word (appointment, meeting, dentist, doctor, flight, dinner, booking, etc). Set title/date/time for the new event.
+- "update" — the note asks to change/move/reschedule an event that already exists in EXISTING EVENTS below (e.g. "move my dentist appt to 4pm", "push the gym session to tomorrow"). Set "match_uid" to the uid copied EXACTLY from EXISTING EVENTS. Only set the fields (title/date/time) that should change; leave the rest null.
+- "delete" — the note asks to cancel/remove an event that already exists in EXISTING EVENTS (e.g. "cancel my dentist appointment", "remove the coffee with Sam"). Set "match_uid" to the uid being removed.
+- "none" — anything else: thoughts, links, tasks, ambiguous notes, or an update/delete you can't confidently match to exactly one existing event.
 
-  // Time: "at 4pm", "4:30 pm", "16:00"
-  let hours = null, minutes = 0;
-  let m = text.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
-  if (m) {
-    hours = (+m[1] % 12) + (m[3] === 'pm' ? 12 : 0);
-    minutes = +(m[2] || 0);
-    matched.push(m[0]);
-  } else if ((m = text.match(/\b(?:at\s+)(\d{1,2}):(\d{2})\b/))) {
-    hours = +m[1]; minutes = +m[2];
-    matched.push(m[0]);
-  }
+Never invent a match_uid — copy it verbatim from EXISTING EVENTS, and only when confident. If in doubt, use "none".
 
-  // Date, most-specific first.
-  let date = null;
-  const monthPat = new RegExp(`\\b(?:on\\s+)?(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTHS.join('|')})[a-z]*\\b|\\b(${MONTHS.join('|')})[a-z]*\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\b`);
-  if ((m = text.match(monthPat))) {
-    const day = +(m[1] || m[4]);
-    const mon = MONTHS.indexOf(m[2] || m[3]);
-    date = new Date(now.getFullYear(), mon, day);
-    if (date < now && !sameDay(date, now)) date.setFullYear(date.getFullYear() + 1);
-    matched.push(m[0]);
-  } else if ((m = text.match(/\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b/))) {
-    const day = +m[1];
-    date = new Date(now.getFullYear(), now.getMonth(), day);
-    if (date < now && !sameDay(date, now)) date.setMonth(date.getMonth() + 1);
-    matched.push(m[0]);
-  } else if ((m = text.match(new RegExp(`\\b(?:on\\s+|next\\s+)?(${WEEKDAYS.join('|')})\\b`)))) {
-    const target = WEEKDAYS.indexOf(m[1]);
-    const ahead = (target - now.getDay() + 7) % 7 || 7;
-    date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ahead);
-    matched.push(m[0]);
-  } else if ((m = text.match(/\btomorrow\b/))) {
-    date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    matched.push(m[0]);
-  } else if ((m = text.match(/\btoday\b|\btonight\b/))) {
-    date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    if (m[0] === 'tonight' && hours === null) { hours = 19; }
-    matched.push(m[0]);
-  }
+EXISTING EVENTS (next 45 days):
+${JSON.stringify(existingEvents.map(e => ({ uid: e.uid, title: e.title, date: e.date, time: e.time })))}
 
-  if (!date) return null;
-  // Confidence gate: a bare date isn't enough — need a time or an event word.
-  if (hours === null && !EVENT_WORDS.test(content)) return null;
+Reply with ONLY a JSON array covering every row, in the form:
+[{"id":"...","calendar_action":"add","title":"...","date":"YYYY-MM-DD","time":"HH:MM" or null,"match_uid":null}]
 
-  if (hours !== null) date.setHours(hours, minutes, 0, 0);
+ROWS:
+${JSON.stringify(rows.map(r => ({ id: r.id, content: r.content })), null, 1)}`;
 
-  // Title: strip matched phrases + capture-y prefixes, tidy up.
-  let title = content;
-  for (const frag of matched) {
-    title = title.replace(new RegExp(frag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ' ');
-  }
-  title = title
-    .replace(/\b(i have (a|an)?|i've got (a|an)?|there is (a|an)?|new|add|remind me( about| of)?)\b/gi, ' ')
-    .replace(/\b(on|at|the|of)\s*$/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .replace(/^[\s,.-]+|[\s,.-]+$/g, '')
-    .trim();
-  if (!title) title = 'Event';
-  title = title[0].toUpperCase() + title.slice(1);
+  const out = execFileSync(CLAUDE_BIN, [
+    '-p', '--model', MODEL,
+    '--disallowedTools', 'Bash,Read,Glob,Grep,Write,Edit,WebFetch,WebSearch,Task,NotebookEdit',
+  ], { input: prompt, encoding: 'utf8', timeout: 300000, maxBuffer: 8 * 1024 * 1024 });
 
-  return { date, hasTime: hours !== null, title };
+  const json = out.match(/\[[\s\S]*\]/);
+  if (!json) throw new Error(`no JSON array in claude output: ${out.slice(0, 200)}`);
+  return JSON.parse(json[0]);
 }
 
-const sameDay = (a, b) => a.toDateString() === b.toDateString();
+// ── Bridge-events ledger (vault-side cache so the dashboard tile updates
+//    immediately, ahead of the next static ICS re-export) ────────────────
 
-// ── Apple Calendar write (osascript) ──────────────────────────────
-
-function addToAppleCalendar(title, date, hasTime) {
-  const durationMin = hasTime ? 60 : 24 * 60;
-  const script = `
-set d to current date
-set year of d to ${date.getFullYear()}
-set month of d to ${date.getMonth() + 1}
-set day of d to ${date.getDate()}
-set hours of d to ${hasTime ? date.getHours() : 0}
-set minutes of d to ${hasTime ? date.getMinutes() : 0}
-set seconds of d to 0
-tell application "Calendar"
-  tell calendar "${CALENDAR_NAME.replace(/"/g, '\\"')}"
-    make new event with properties {summary:"${title.replace(/"/g, '\\"')}", start date:d, end date:d + (${durationMin} * minutes)${hasTime ? '' : ', allday event:true'}}
-  end tell
-end tell`;
-  execFileSync('osascript', ['-e', script], { timeout: 30000 });
+function loadLedger() {
+  return existsSync(EVENTS_PATH) ? JSON.parse(readFileSync(EVENTS_PATH, 'utf8')) : [];
+}
+function saveLedger(ledger) {
+  mkdirSync(join(VAULT_DIR, '09-calendar'), { recursive: true });
+  writeFileSync(EVENTS_PATH, JSON.stringify(ledger, null, 2));
+}
+function pushLedgerEntry(entry) {
+  const ledger = loadLedger();
+  ledger.push({ ...entry, created_at: new Date().toISOString() });
+  saveLedger(ledger);
+}
+function updateLedgerEntry(uid, changes) {
+  const ledger = loadLedger();
+  const idx = ledger.findIndex(e => e.uid === uid);
+  if (idx === -1) return; // event predates this ledger (manual/ICS-only) — nothing to sync here
+  if (changes.title !== undefined) ledger[idx].title = changes.title;
+  if (changes.date !== undefined) ledger[idx].date = changes.date;
+  if (changes.time !== undefined) ledger[idx].time = changes.time;
+  saveLedger(ledger);
+}
+function removeLedgerEntry(uid) {
+  const ledger = loadLedger();
+  const next = ledger.filter(e => e.uid !== uid);
+  if (next.length !== ledger.length) saveLedger(next);
 }
 
 // ── Drain the queue ───────────────────────────────────────────────
@@ -156,36 +140,96 @@ if (!rows.length) {
   process.exit(0);
 }
 
-const pad = n => String(n).padStart(2, '0');
+if (!CLAUDE_BIN) {
+  console.log('sync-captures: claude CLI not found — set CLAUDE_BIN in .env. Leaving queue untouched.');
+  process.exit(0);
+}
+
+let existingEvents = [];
+try {
+  existingEvents = await readUpcomingEvents({ horizonDays: 45 });
+} catch (e) {
+  console.log(`sync-captures: can't read upcoming events — ${e.message.split('\n')[0]}`);
+}
+const validUids = new Set(existingEvents.filter(e => e.uid).map(e => e.uid));
+
+let verdicts;
+try {
+  verdicts = classifyCaptures(rows, existingEvents);
+} catch (e) {
+  console.log(`sync-captures: classification failed, leaving queue for next run: ${e.message.split('\n')[0]}`);
+  process.exit(0);
+}
+const byId = new Map(verdicts.map(v => [v.id, v]));
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/, HHMM = /^\d{2}:\d{2}$/;
 let inboxed = 0, calendared = 0;
 
 for (const row of rows) {
-  const ev = parseEvent(row.content);
+  const v = byId.get(row.id) || { calendar_action: 'none' };
 
-  if (ev) {
-    const dateStr = `${ev.date.getFullYear()}-${pad(ev.date.getMonth() + 1)}-${pad(ev.date.getDate())}`;
-    const timeStr = ev.hasTime ? `${pad(ev.date.getHours())}:${pad(ev.date.getMinutes())}` : null;
-
-    // Ledger first — the dashboard must show it even if Calendar.app fails.
-    mkdirSync(join(VAULT_DIR, '09-calendar'), { recursive: true });
-    const ledger = existsSync(EVENTS_PATH) ? JSON.parse(readFileSync(EVENTS_PATH, 'utf8')) : [];
-    ledger.push({ title: ev.title, date: dateStr, time: timeStr, captured: row.content, created_at: new Date().toISOString() });
-    writeFileSync(EVENTS_PATH, JSON.stringify(ledger, null, 2));
-
-    try {
-      addToAppleCalendar(ev.title, ev.date, ev.hasTime);
-      console.log(`📅 "${ev.title}" → Apple Calendar (${CALENDAR_NAME}) ${dateStr}${timeStr ? ' ' + timeStr : ''}`);
-    } catch (e) {
-      console.log(`! Calendar.app write failed ("${ev.title}"): ${e.message.split('\n')[0]}`);
-      console.log('  Event is still on the dashboard via the bridge ledger. If this is a');
-      console.log('  permissions error, grant Calendar automation access when prompted.');
+  if (v.calendar_action === 'add' && ISO_DATE.test(v.date || '')) {
+    const time = HHMM.test(v.time || '') ? v.time : null;
+    const title = String(v.title || '').slice(0, 120).trim() || 'Event';
+    const dup = findDuplicate({ title, date: v.date, candidates: existingEvents });
+    if (dup) {
+      console.log(`⏭ skipped "${title}" ${v.date} — looks like a duplicate of existing "${dup.title}"`);
+    } else {
+      try {
+        const { uid } = addEvent({ calendarName: CALENDAR_NAME, title, date: v.date, time });
+        pushLedgerEntry({ uid, title, date: v.date, time, captured: row.content });
+        existingEvents.push({ uid, title, date: v.date, time, allDay: !time });
+        console.log(`📅 "${title}" → Apple Calendar (${CALENDAR_NAME}) ${v.date}${time ? ' ' + time : ''}`);
+      } catch (e) {
+        console.log(`! Calendar.app write failed ("${title}"): ${e.message.split('\n')[0]}`);
+        console.log('  If this is a permissions error, grant Calendar automation access when prompted.');
+      }
     }
     await rest('DELETE', `captures?id=eq.${row.id}`);
     calendared++;
     continue;
   }
 
-  // Not event-like → vault inbox, as before.
+  if ((v.calendar_action === 'update' || v.calendar_action === 'delete') && validUids.has(v.match_uid)) {
+    const match = existingEvents.find(e => e.uid === v.match_uid);
+    console.log(`  … ${v.calendar_action === 'update' ? 'updating' : 'deleting'} "${match.title}" in Calendar.app (this can take up to a few minutes on a large calendar)`);
+    try {
+      if (v.calendar_action === 'update') {
+        const title = typeof v.title === 'string' && v.title.trim() ? v.title.trim().slice(0, 120) : undefined;
+        const date = ISO_DATE.test(v.date || '') ? v.date : undefined;
+        const time = HHMM.test(v.time || '') ? v.time : undefined;
+        updateEvent({ calendarName: CALENDAR_NAME, uid: v.match_uid, title, date, time });
+        updateLedgerEntry(v.match_uid, { title, date, time });
+        console.log(`✎ updated "${match.title}" → ${title || match.title} ${date || match.date}${(time ?? match.time) ? ' ' + (time ?? match.time) : ''}`);
+      } else {
+        deleteEvent({ calendarName: CALENDAR_NAME, uid: v.match_uid });
+        removeLedgerEntry(v.match_uid);
+        console.log(`🗑 deleted "${match.title}" ${match.date}`);
+      }
+      await rest('DELETE', `captures?id=eq.${row.id}`);
+      calendared++;
+    } catch (e) {
+      console.log(`! ${v.calendar_action} failed ("${match.title}"): ${e.message.split('\n')[0]}`);
+    }
+    continue;
+  }
+
+  // Not calendar-actionable → vault inbox, as before.
+  // Social video links (TikTok / IG reels / Shorts) get the actual video
+  // content pulled in — caption + speech transcript — so the compile skill
+  // works from what the video says, not just the URL.
+  let videoBlock = null;
+  const videoUrl = row.content.match(VIDEO_URL_RE)?.[0];
+  if (videoUrl) {
+    try {
+      videoBlock = videoMarkdown(fetchVideoContent(videoUrl));
+      console.log(`▶ video content extracted: ${videoUrl}`);
+    } catch (e) {
+      videoBlock = `## Video content (auto-extracted)\n\n_Extraction failed: ${e.message.split('\n')[0]}. Retry with \`node scripts/fetch-video.mjs "${videoUrl}"\`._`;
+      console.log(`! video extraction failed (${videoUrl}): ${e.message.split('\n')[0]}`);
+    }
+  }
+
   const at = new Date(row.created_at);
   const stamp = at.toISOString().slice(0, 16).replace('T', '-').replace(':', '');
   const slug = row.content.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'capture';
@@ -205,6 +249,7 @@ for (const row of rows) {
     '',
     row.content,
     '',
+    ...(videoBlock ? [videoBlock, ''] : []),
   ].join('\n'));
 
   await rest('DELETE', `captures?id=eq.${row.id}`);
