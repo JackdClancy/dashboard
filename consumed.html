@@ -296,7 +296,9 @@
       document.getElementById('consumedCount').textContent =
         `${items.length} item${items.length === 1 ? '' : 's'}`;
 
-      const chip = k => k === 'thought' ? 'bg-violet-500/15 text-violet-300' : 'bg-sky-500/15 text-sky-300';
+      const chip = k => k === 'thought' ? 'bg-violet-500/15 text-violet-300'
+                      : k === 'health'  ? 'bg-emerald-500/15 text-emerald-300'
+                      : 'bg-sky-500/15 text-sky-300';
       el.innerHTML = items.map(i => `
         <tr class="border-b border-white/5 hover:bg-white/5 transition-colors align-top">
           <td class="px-5 py-3.5">
