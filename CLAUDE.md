@@ -39,22 +39,32 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   `CALENDAR_ICS` is a live iCloud public-share `webcal://` link (Calendar.app → Personal → Share
   Calendar → Public Calendar), so no manual re-export is needed — but that publish feed is its own
   eventually-consistent snapshot, not instant: observed both a multi-minute lag before a new event
-  appeared, and (rarer) a stale/orphaned entry under an old uid for an event that had already
-  changed locally. Treat it as "usually fresh within a few minutes," not "always current to the
-  second" — only the ICS-based read side has this lag; `addEvent`/`updateEvent`/`deleteEvent`
-  always act on Calendar.app's real, current state immediately. `addEvent`,
-  `updateEvent`, `deleteEvent` go through Calendar.app via osascript — unavoidable for actually
-  mutating the calendar, but measured at 40s-150s+ per `updateEvent`/`deleteEvent` call against
-  Jack's ~550-event Personal calendar (Calendar.app's `whose()` predicate evaluation scans the
-  *entire* event history, not just the matches; `addEvent`/push is fast, a few seconds, since it
-  doesn't scan). Their osascript timeout is set to 5 minutes on purpose — killing the process
-  mid-edit doesn't cleanly abort it, it can leave a **partially-applied** edit (observed directly:
-  title changed, time didn't, because the process was killed between the two property writes). Use
-  `updateEvent`/`deleteEvent` only for single, deliberate mutations, never in a loop. `findDuplicate`
-  (same-day + fuzzy-title match) runs against the `readUpcomingEvents()` list — used as a pre-add
-  dedupe check and to resolve which existing event a natural-language edit/cancel refers to.
-  `sync-captures.mjs`, `sync-mail.mjs`, and `calendar-manager.mjs` all import this instead of
-  building their own AppleScript.
+  appeared, and, more importantly, **the uid the public feed reports for an event is not the same
+  uid Calendar.app uses internally** (confirmed directly — the same event showed a different uid
+  via the feed vs. a local `whose({summary:...})` lookup). Passing a feed uid straight to
+  `updateEvent`/`deleteEvent` fails with "Event not found" — so both take `matchTitle`/`matchDate`
+  instead of trusting a feed uid, resolving the true local event by summary+day and mutating it in
+  the SAME `whose()` scan (deliberately not a separate resolve-then-write pair of scans — that
+  doubled the failure window and was caught corrupting an event's end time mid-edit while building
+  this). `sync-captures.mjs`'s update/delete path and `calendar-manager.mjs`'s
+  `edit`/`remove`/`dedupe --apply` all pass `matchTitle`/`matchDate`; never call them with a uid
+  straight from `readUpcomingEvents()` alone. `addEvent`, `updateEvent`, `deleteEvent` go through
+  Calendar.app via osascript — unavoidable for actually mutating the calendar, but measured highly
+  variable per `updateEvent`/`deleteEvent` call against Jack's ~550-event Personal calendar (38s one
+  run, 5+ minutes the next, same operation — Calendar.app's `whose()` predicate evaluation scans the
+  *entire* event history, not just the matches, and that cost isn't stable; `addEvent`/push is fast,
+  a few seconds, since it doesn't scan). Their osascript timeout is set to 8 minutes on purpose —
+  killing the process mid-edit doesn't cleanly abort it, it can leave a **partially-applied** edit
+  (observed directly: title changed, time didn't, because the process was killed between the two
+  property writes). Also: Calendar.app validates start < end on EACH property write, not just at
+  save time, so `updateEvent` picks whichever of startDate/endDate is safe to write first against
+  the other's still-current value — writing them in a fixed order fails outright whenever a new
+  start time lands after the old end time (also observed directly). Use `updateEvent`/`deleteEvent`
+  only for single, deliberate mutations, never in a loop. `findDuplicate` (same-day + fuzzy-title
+  match) runs against the `readUpcomingEvents()` list — used as a pre-add dedupe check and to
+  resolve which existing event a natural-language edit/cancel refers to. `sync-captures.mjs`,
+  `sync-mail.mjs`, and `calendar-manager.mjs` all import this instead of building their own
+  AppleScript.
 - `sync-captures.mjs` — drains the `captures` queue (home page quick-add bar, plus the share-sheet
   entry points below). **Calendar intent (reworked 2026-07-20):** each capture is classified once
   by headless `claude -p` (`CAPTURE_TRIAGE_MODEL`, default haiku), given the next 45 days of

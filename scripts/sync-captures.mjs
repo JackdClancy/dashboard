@@ -192,26 +192,32 @@ for (const row of rows) {
 
   if ((v.calendar_action === 'update' || v.calendar_action === 'delete') && validUids.has(v.match_uid)) {
     const match = existingEvents.find(e => e.uid === v.match_uid);
-    console.log(`  … ${v.calendar_action === 'update' ? 'updating' : 'deleting'} "${match.title}" in Calendar.app (this can take up to a few minutes on a large calendar)`);
+    console.log(`  … ${v.calendar_action === 'update' ? 'updating' : 'deleting'} "${match.title}" in Calendar.app (this can take up to a few minutes)`);
     try {
+      // Resolve by matchTitle+matchDate, not match.uid — the feed-context
+      // uid isn't reliably valid for a local lookup (Apple's public-calendar
+      // publish re-keys events under a different uid than Calendar.app uses
+      // internally). See calendar-lib.mjs's updateEvent/deleteEvent notes.
       if (v.calendar_action === 'update') {
         const title = typeof v.title === 'string' && v.title.trim() ? v.title.trim().slice(0, 120) : undefined;
         const date = ISO_DATE.test(v.date || '') ? v.date : undefined;
         const time = HHMM.test(v.time || '') ? v.time : undefined;
-        updateEvent({ calendarName: CALENDAR_NAME, uid: v.match_uid, title, date, time });
+        updateEvent({ calendarName: CALENDAR_NAME, matchTitle: match.title, matchDate: match.date, title, date, time });
         updateLedgerEntry(v.match_uid, { title, date, time });
         console.log(`✎ updated "${match.title}" → ${title || match.title} ${date || match.date}${(time ?? match.time) ? ' ' + (time ?? match.time) : ''}`);
       } else {
-        deleteEvent({ calendarName: CALENDAR_NAME, uid: v.match_uid });
+        deleteEvent({ calendarName: CALENDAR_NAME, matchTitle: match.title, matchDate: match.date });
         removeLedgerEntry(v.match_uid);
         console.log(`🗑 deleted "${match.title}" ${match.date}`);
       }
       await rest('DELETE', `captures?id=eq.${row.id}`);
       calendared++;
+      continue;
     } catch (e) {
       console.log(`! ${v.calendar_action} failed ("${match.title}"): ${e.message.split('\n')[0]}`);
     }
-    continue;
+    // Write failed — fall through to the inbox path below so the capture
+    // isn't silently lost, and doesn't retry forever either.
   }
 
   // Not calendar-actionable → vault inbox, as before.

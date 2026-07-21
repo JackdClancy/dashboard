@@ -13,16 +13,22 @@
 //   ~550-event Personal calendar, `whose()` lookups (needed for
 //   update/delete-by-uid) took anywhere from ~40s to 150s+ across runs,
 //   because Calendar.app's scripting bridge evaluates the predicate against
-//   its entire event history, not just the matches — and that cost seems to
-//   vary run to run. A plain create (addEvent/push) is fast (a few seconds)
-//   since it doesn't need to scan anything. This is why updateEvent/
-//   deleteEvent are NOT used for bulk reads — only for single, deliberate
-//   mutations — and why their osascript timeout is set generously (5 min):
-//   killing the process mid-operation doesn't cleanly abort the edit, it can
-//   leave it PARTIALLY APPLIED (e.g. title changed but not the time,
-//   observed directly while building this) since each property write is its
-//   own Apple Event round-trip within the one script. A slow-but-uninterrupted
-//   run is much safer than a fast timeout.
+//   its entire event history, not just the matches — and that cost is highly
+//   variable run to run (measured 38s one moment, 5+ minutes the next, same
+//   operation, no obvious cause — likely iCloud sync contention). A plain
+//   create (addEvent/push) is fast (a few seconds) since it doesn't need to
+//   scan anything. This is why updateEvent/deleteEvent are NOT used for bulk
+//   reads — only for single, deliberate mutations — and why their osascript
+//   timeout is set generously (8 min): killing the process mid-operation
+//   doesn't cleanly abort the edit, it can leave it PARTIALLY APPLIED (e.g.
+//   title changed but not the time, observed directly while building this)
+//   since each property write is its own Apple Event round-trip within the
+//   one script. A slow-but-uninterrupted run is much safer than a fast
+//   timeout. Also: Calendar.app validates start < end on EACH property
+//   write, not just at save time, so startDate/endDate must be written in
+//   whichever order avoids a transient invalid state (see updateEvent) —
+//   the naive "always start then end" order fails outright when a new start
+//   time lands after the old end time.
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -186,6 +192,22 @@ export async function readUpcomingEvents({ horizonDays = 30 } = {}) {
   return events.sort((a, b) => (a.date + (a.time || '')) < (b.date + (b.time || '')) ? -1 : 1);
 }
 
+// IMPORTANT: uids from readUpcomingEvents() (parsed from the ICS/public-share
+// feed) are NOT reliably the same uid Calendar.app uses internally — Apple's
+// public-calendar publish re-keys events under a different uid than the local
+// CalDAV/EventKit store uses (confirmed directly: the same event showed uid
+// 89843F1A... via the public feed but A842B0AC... locally). That's why
+// updateEvent/deleteEvent below locate the target event by matchTitle +
+// matchDate (a single whose({summary}) scan, filtered by day in the same
+// script) rather than trusting a feed-sourced uid — resolving via a separate
+// findLocalEvent-style call first would mean TWO full-collection scans
+// per operation instead of one, doubling an already slow, timeout-prone
+// path (observed directly: a resolve-then-update pair together exceeded a
+// 5-minute-each budget and got killed mid-operation, corrupting the event's
+// end time — see the git history for that iteration if curious). Pass `uid`
+// only when it's already known to be a genuine local uid (e.g. one just
+// returned by addEvent in this same run).
+
 // ── Writes: Calendar.app via JXA ────────────────────────────────────
 
 // → { uid } of the newly created event. Fast — no whose()/scan involved.
@@ -211,22 +233,42 @@ function run(argv) {
   return { uid };
 }
 
-// Slow (up to a few minutes): locates the event via whose({uid}), a full-collection
-// scan in Calendar.app's scripting bridge. Only ever call this for a single,
-// deliberate edit — never in a loop over many events.
-// Only fields explicitly passed (non-undefined) are changed; date/time
-// changes carry over the event's existing duration.
-export function updateEvent({ calendarName = defaultCalendar(), uid, title, date, time }) {
+// Shared JXA snippet: resolve one event, preferring matchTitle+matchDate
+// (a single whose({summary}) scan filtered by day) over a bare uid lookup —
+// see the IMPORTANT note above for why. Assign to `ev`; throws if not found.
+const RESOLVE_EVENT_JXA = `
+  var ev = null;
+  if (matchTitle) {
+    var byTitle = cal.events.whose({ summary: matchTitle });
+    var starts = byTitle.startDate();
+    for (var i = 0; i < starts.length; i++) {
+      var s = starts[i];
+      var dateStr = s.getFullYear() + '-' + String(s.getMonth() + 1).padStart(2, '0') + '-' + String(s.getDate()).padStart(2, '0');
+      if (dateStr === matchDate) { ev = byTitle[i]; break; }
+    }
+  } else if (uid) {
+    var byUid = cal.events.whose({ uid: uid });
+    if (byUid.length > 0) ev = byUid[0];
+  }
+  if (!ev) throw new Error('Event not found (matchTitle=' + matchTitle + ' matchDate=' + matchDate + ' uid=' + uid + ')');
+`;
+
+// Slow (up to a few minutes): a single whose() scan, a full-collection scan
+// in Calendar.app's scripting bridge. Only ever call this for a single,
+// deliberate edit — never in a loop over many events. Pass matchTitle +
+// matchDate to locate the event (preferred — see IMPORTANT note above), or
+// uid if it's already known to be a genuine local uid. Only fields
+// explicitly passed (non-undefined) among title/date/time are changed;
+// date/time changes carry over the event's existing duration.
+export function updateEvent({ calendarName = defaultCalendar(), uid, matchTitle, matchDate, title, date, time }) {
   const script = `
 function run(argv) {
-  const [calName, uid, title, hasTitle, y, mo, d, hasDate, h, mi, hasTime] = argv;
+  const [calName, uid, matchTitle, matchDate, title, hasTitle, y, mo, d, hasDate, h, mi, hasTime] = argv;
   const Cal = Application('Calendar');
   const cals = Cal.calendars.whose({ name: calName });
   if (cals.length === 0) throw new Error('Calendar not found: ' + calName);
   const cal = cals[0];
-  const matches = cal.events.whose({ uid: uid });
-  if (matches.length === 0) throw new Error('Event not found: ' + uid);
-  const ev = matches[0];
+  ${RESOLVE_EVENT_JXA}
   if (hasTitle === '1') ev.summary = title;
   if (hasDate === '1' || hasTime === '1') {
     const cur = ev.startDate();
@@ -241,32 +283,43 @@ function run(argv) {
     const nmi = hasTime === '1' ? Number(mi) : (isAllDay ? 0 : cur.getMinutes());
     const newStart = new Date(ny, nmo, nd, nh, nmi, 0);
     const newDuration = isAllDay ? 24 * 60 * 60000 : (durationMs > 0 ? durationMs : 60 * 60000);
+    const newEnd = new Date(newStart.getTime() + newDuration);
     ev.alldayEvent = isAllDay;
-    ev.startDate = newStart;
-    ev.endDate = new Date(newStart.getTime() + newDuration);
+    // Calendar.app validates start < end on each property write, not just at
+    // save time — writing startDate/endDate in the wrong order can pass
+    // through a transient invalid state and get rejected (observed directly:
+    // moving a start time past the old end time). Pick whichever field is
+    // safe to write first against the OTHER field's still-current value.
+    if (newStart < curEnd) {
+      ev.startDate = newStart;
+      ev.endDate = newEnd;
+    } else {
+      ev.endDate = newEnd;
+      ev.startDate = newStart;
+    }
   }
-  return 'ok';
+  return ev.uid();
 }`;
   const [y, mo, d] = date ? date.split('-').map(Number) : [0, 0, 0];
   const [h, mi] = time ? time.split(':').map(Number) : [0, 0];
-  runJXA(script, [calendarName, uid, title || '', title !== undefined ? '1' : '0', y, mo, d, date !== undefined ? '1' : '0', h, mi, time !== undefined ? '1' : '0'], 300000);
+  return runJXA(script, [calendarName, uid || '', matchTitle || '', matchDate || '', title || '', title !== undefined ? '1' : '0', y, mo, d, date !== undefined ? '1' : '0', h, mi, time !== undefined ? '1' : '0'], 480000);
 }
 
-// Slow (up to a few minutes) — see updateEvent.
-export function deleteEvent({ calendarName = defaultCalendar(), uid }) {
+// Slow (up to a few minutes) — see updateEvent. Pass matchTitle + matchDate
+// (preferred) or uid.
+export function deleteEvent({ calendarName = defaultCalendar(), uid, matchTitle, matchDate }) {
   const script = `
 function run(argv) {
-  const [calName, uid] = argv;
+  const [calName, uid, matchTitle, matchDate] = argv;
   const Cal = Application('Calendar');
   const cals = Cal.calendars.whose({ name: calName });
   if (cals.length === 0) throw new Error('Calendar not found: ' + calName);
   const cal = cals[0];
-  const matches = cal.events.whose({ uid: uid });
-  if (matches.length === 0) throw new Error('Event not found: ' + uid);
-  matches[0].delete();
+  ${RESOLVE_EVENT_JXA}
+  ev.delete();
   return 'ok';
 }`;
-  runJXA(script, [calendarName, uid], 300000);
+  runJXA(script, [calendarName, uid || '', matchTitle || '', matchDate || ''], 480000);
 }
 
 // ── Dedupe / fuzzy matching (pure JS, no osascript) ────────────────

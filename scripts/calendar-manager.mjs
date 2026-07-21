@@ -5,12 +5,13 @@
 // on its own.
 //
 // list/dedupe read from the ICS export + bridge-events ledger (fast, via
-// calendar-lib.mjs's readUpcomingEvents — only as fresh as the last ICS
-// re-export unless CALENDAR_ICS points at a live webcal:// URL). add/edit/
-// remove write directly to Calendar.app; edit/remove locate the event by
-// uid via a live whose() scan, which is SLOW (up to a few minutes on a calendar this
-// size) — that's inherent to Calendar.app's scripting bridge, not something
-// this script can speed up, so expect a wait.
+// calendar-lib.mjs's readUpcomingEvents — a live webcal:// URL if
+// CALENDAR_ICS is set to one). add/edit/remove write directly to
+// Calendar.app; edit/remove/dedupe --apply locate the event by title+date
+// (not the feed's uid — see calendar-lib.mjs's updateEvent/deleteEvent notes
+// for why) via a live whose() scan, which is SLOW (up to a few minutes on a
+// calendar this size) — that's inherent to Calendar.app's scripting bridge,
+// not something this script can speed up, so expect a wait.
 //
 // Usage:
 //   node scripts/calendar-manager.mjs list [--days 14]
@@ -87,10 +88,13 @@ switch (cmd) {
     if (!uid) { console.error('Usage: edit <uid> [--title T] [--date D] [--time T]'); process.exit(1); }
     if (flags.date && !ISO_DATE.test(flags.date)) { console.error('Date must be YYYY-MM-DD'); process.exit(1); }
     if (flags.time && !HHMM.test(flags.time)) { console.error('Time must be HH:MM'); process.exit(1); }
+    const match = (await readUpcomingEvents({ horizonDays: 400 })).find(e => e.uid === uid);
     console.log('Applying via Calendar.app — this can take up to a few minutes on a large calendar…');
     updateEvent({
       calendarName,
-      uid,
+      uid: match ? undefined : uid,
+      matchTitle: match?.title,
+      matchDate: match?.date,
       title: typeof flags.title === 'string' ? flags.title : undefined,
       date: typeof flags.date === 'string' ? flags.date : undefined,
       time: typeof flags.time === 'string' ? flags.time : undefined,
@@ -107,7 +111,7 @@ switch (cmd) {
     else console.log(`(uid ${uid} not found in the next ~13 months of the ICS/ledger view — proceeding on the uid alone)`);
     if (!flags.yes) { console.log('Dry run — re-run with --yes to actually delete.'); break; }
     console.log('Applying via Calendar.app — this can take up to a few minutes on a large calendar…');
-    deleteEvent({ calendarName, uid });
+    deleteEvent({ calendarName, uid: match ? undefined : uid, matchTitle: match?.title, matchDate: match?.date });
     console.log('Deleted.');
     break;
   }
@@ -137,8 +141,12 @@ switch (cmd) {
         const [keep, ...drop] = withUid;
         for (const e of drop) {
           console.log(`  deleting ${e.uid.slice(0, 12)}… via Calendar.app (this can take up to a few minutes)…`);
-          deleteEvent({ calendarName, uid: e.uid });
-          console.log(`  deleted ${e.uid.slice(0, 12)}… (kept ${keep.uid.slice(0, 12)}…)`);
+          try {
+            deleteEvent({ calendarName, matchTitle: e.title, matchDate: e.date });
+            console.log(`  deleted ${e.uid.slice(0, 12)}… (kept ${keep.uid.slice(0, 12)}…)`);
+          } catch (err) {
+            console.log(`  ! couldn't delete "${e.title}": ${err.message.split('\n')[0]}`);
+          }
         }
       }
     }
