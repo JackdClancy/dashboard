@@ -10,6 +10,9 @@ docs/
 # Sync shadow state (machine-written)
 scripts/.sync-state-*.json
 
+# Local whisper model for scripts/fetch-video.mjs (~148MB, re-downloadable)
+scripts/.whisper/
+
 # iOS Scriptable scripts live on the phone; hardcode the anon key, keep out of the public repo
 scriptable/
 
