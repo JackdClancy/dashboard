@@ -395,6 +395,15 @@
       return `${p(dt.getDate())}-${p(dt.getMonth()+1)}-${String(dt.getFullYear()).slice(-2)}`;
     }
     function isToday(d){ return d.toDateString() === today.toDateString(); }
+    // Display format for all clock times: 12-hour, e.g. "2:30pm" / "4pm"
+    // (stored/synced values stay 24-hour "HH:MM" — convert only at render time).
+    function fmtTime12(hhmm){
+      const [h, m] = String(hhmm).split(':').map(Number);
+      if (isNaN(h) || isNaN(m)) return String(hhmm);
+      const period = h < 12 ? 'am' : 'pm';
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`;
+    }
 
     function getMonday(d){
       const dt = new Date(d);
@@ -683,7 +692,7 @@
       const todayKey = new Date().toDateString();
       el.innerHTML = items.map(m => {
         const d = new Date(m.received);
-        const hm = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        const hm = fmtTime12(`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
         const when = d.toDateString() === todayKey ? hm : `${fmtDMY(d)} ${hm}`;
         return `
         <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/8 transition-colors max-sm:flex-wrap max-sm:gap-x-3 max-sm:gap-y-0.5">
@@ -733,7 +742,7 @@
         return `
         <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/8 transition-colors">
           <span class="text-xs font-medium ${ev.date === todayStr ? 'text-primary-400' : 'text-white/45'} w-24 flex-shrink-0">${esc(label)}</span>
-          <span class="text-xs text-white/35 w-12 flex-shrink-0">${ev.time ? esc(ev.time) : 'all day'}</span>
+          <span class="text-xs text-white/35 w-12 flex-shrink-0">${ev.time ? esc(fmtTime12(ev.time)) : 'all day'}</span>
           <span class="text-sm text-white/80 truncate">${esc(ev.title)}</span>
         </div>`;
       }).join('');

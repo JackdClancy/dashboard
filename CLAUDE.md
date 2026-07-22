@@ -165,3 +165,11 @@ Every user-visible date renders as **DD-MM-YY** (e.g. `14-07-26`) via the `fmtDM
 page defines (`finances.js` has its own copy). Use it for any new date display. Stored/synced
 values stay ISO `YYYY-MM-DD` — DB columns, frontmatter, vault filenames, `isoDate()` grid keys —
 because they're parsed and sorted; convert only at render time.
+
+## Time display convention (added 2026-07-22)
+
+Every user-visible clock time renders as **12-hour** (e.g. `2:30pm`, or `4pm` with minutes omitted
+on the hour) via `fmtTime12()` in `index.html` — the only page with clock-time displays (Mail tile
+received time, Upcoming tile event time). Stored/synced values stay 24-hour `HH:MM` (`app_state`
+calendar events, `m.received` ISO timestamps) because they're parsed and compared; convert only at
+render time, same as `fmtDMY()`.
