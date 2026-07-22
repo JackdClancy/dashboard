@@ -60,8 +60,13 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   save time, so `updateEvent` picks whichever of startDate/endDate is safe to write first against
   the other's still-current value — writing them in a fixed order fails outright whenever a new
   start time lands after the old end time (also observed directly). Use `updateEvent`/`deleteEvent`
-  only for single, deliberate mutations, never in a loop. `findDuplicate` (same-day + fuzzy-title
-  match) runs against the `readUpcomingEvents()` list — used as a pre-add dedupe check and to
+  only for single, deliberate mutations, never in a loop. Also fixed: the ledger-merge's "is this
+  today or later" cutoff used `someDate.toISOString().slice(0, 10)` — for a UTC-ahead timezone like
+  NZ (UTC+12), converting local midnight to ISO/UTC rolls the date back a day, so yesterday's
+  events kept passing the cutoff and stayed on the Upcoming tile (observed directly). Fixed with a
+  local-Y-M-D string helper (`toDateStr`) instead of `toISOString()` — never use `toISOString()` for
+  a date-only comparison against local calendar dates in this file. `findDuplicate` (same-day +
+  fuzzy-title match) runs against the `readUpcomingEvents()` list — used as a pre-add dedupe check and to
   resolve which existing event a natural-language edit/cancel refers to. `sync-captures.mjs`,
   `sync-mail.mjs`, and `calendar-manager.mjs` all import this instead of building their own
   AppleScript.

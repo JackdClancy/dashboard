@@ -121,6 +121,8 @@ function expand(start, rule, windowStart, windowEnd) {
 }
 
 const pad = n => String(n).padStart(2, '0');
+// Local Y-M-D, not toISOString() — see readUpcomingEvents' cutoff comment.
+const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 // ICS text → [{ date, time, title, uid }] within [windowStart, windowEnd).
 export function parseIcsEvents(ics, windowStart, windowEnd) {
@@ -177,11 +179,16 @@ export async function readUpcomingEvents({ horizonDays = 30 } = {}) {
 
   try {
     const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
-    const cutoff = new Date(windowStart.getTime() - 2 * DAY_MS).toISOString().slice(0, 10);
-    const kept = ledger.filter(ev => ev.date >= cutoff);
+    // Local date strings, not toISOString() — for timezones ahead of UTC
+    // (e.g. NZ, UTC+12), converting local midnight to ISO/UTC rolls the date
+    // back a day, so this cutoff would silently accept yesterday's events
+    // (observed directly: a past event kept showing on the Upcoming tile).
+    const cutoffStr = toDateStr(new Date(windowStart.getTime() - 2 * DAY_MS));
+    const windowStartStr = toDateStr(windowStart);
+    const kept = ledger.filter(ev => ev.date >= cutoffStr);
     const have = new Set(events.map(e => e.date + '|' + e.title.toLowerCase()));
     for (const ev of kept) {
-      if (ev.date >= windowStart.toISOString().slice(0, 10) &&
+      if (ev.date >= windowStartStr &&
           !have.has(ev.date + '|' + ev.title.toLowerCase())) {
         events.push({ date: ev.date, time: ev.time, title: ev.title, uid: ev.uid || null });
       }
