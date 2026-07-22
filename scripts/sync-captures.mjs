@@ -117,18 +117,25 @@ function pushLedgerEntry(entry) {
   ledger.push({ ...entry, created_at: new Date().toISOString() });
   saveLedger(ledger);
 }
-function updateLedgerEntry(uid, changes) {
+// Matches by uid OR by the pre-update title+date — many ledger entries have
+// no uid at all (they predate uid-tracking, or were written by sync-mail.mjs
+// before an edit ever touched them), so uid alone misses them and the ledger
+// is left showing stale data indefinitely (observed directly: an event's
+// ledger copy stayed at its old time after the real event was corrected,
+// because match_uid — sourced from the ICS feed context — never matched the
+// ledger's own uid-less entry).
+function updateLedgerEntry({ uid, matchTitle, matchDate, changes }) {
   const ledger = loadLedger();
-  const idx = ledger.findIndex(e => e.uid === uid);
+  const idx = ledger.findIndex(e => e.uid === uid || (e.title === matchTitle && e.date === matchDate));
   if (idx === -1) return; // event predates this ledger (manual/ICS-only) — nothing to sync here
   if (changes.title !== undefined) ledger[idx].title = changes.title;
   if (changes.date !== undefined) ledger[idx].date = changes.date;
   if (changes.time !== undefined) ledger[idx].time = changes.time;
   saveLedger(ledger);
 }
-function removeLedgerEntry(uid) {
+function removeLedgerEntry({ uid, matchTitle, matchDate }) {
   const ledger = loadLedger();
-  const next = ledger.filter(e => e.uid !== uid);
+  const next = ledger.filter(e => !(e.uid === uid || (e.title === matchTitle && e.date === matchDate)));
   if (next.length !== ledger.length) saveLedger(next);
 }
 
@@ -203,11 +210,11 @@ for (const row of rows) {
         const date = ISO_DATE.test(v.date || '') ? v.date : undefined;
         const time = HHMM.test(v.time || '') ? v.time : undefined;
         updateEvent({ calendarName: CALENDAR_NAME, matchTitle: match.title, matchDate: match.date, title, date, time });
-        updateLedgerEntry(v.match_uid, { title, date, time });
+        updateLedgerEntry({ uid: v.match_uid, matchTitle: match.title, matchDate: match.date, changes: { title, date, time } });
         console.log(`✎ updated "${match.title}" → ${title || match.title} ${date || match.date}${(time ?? match.time) ? ' ' + (time ?? match.time) : ''}`);
       } else {
         deleteEvent({ calendarName: CALENDAR_NAME, matchTitle: match.title, matchDate: match.date });
-        removeLedgerEntry(v.match_uid);
+        removeLedgerEntry({ uid: v.match_uid, matchTitle: match.title, matchDate: match.date });
         console.log(`🗑 deleted "${match.title}" ${match.date}`);
       }
       await rest('DELETE', `captures?id=eq.${row.id}`);
