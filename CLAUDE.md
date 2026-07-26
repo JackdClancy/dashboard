@@ -1,6 +1,6 @@
 # Jack's Dashboard
 
-Static multi-page site (no build step, no framework) deployed via Vercel. Pages: `index.html`, `gym.html`, `finances.html`, `goals.html`, `consumed.html`. Styling is Tailwind via CDN (`tailwind.config` inline) plus a `<style>` block of custom CSS per page; `finances.html` additionally links `finances.css`.
+Static multi-page site (no build step, no framework) deployed via Vercel. Pages: `index.html`, `gym.html`, `finances.html`, `goals.html`, `consumed.html`, `groceries.html`. Styling is Tailwind via CDN (`tailwind.config` inline) plus a `<style>` block of custom CSS per page; `finances.html` additionally links `finances.css`.
 
 > **This app is the "window" surface of Jack's Life OS.** Governing spec (local snapshot, gitignored):
 > `docs/life-os-spec-v3.md` — read it before bridge work. The vault (`~/JC AI Brain`) is the "depth"
@@ -29,6 +29,17 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   `**Next:**` line or `## Next` section — so ending every iteration log with a `**Next:**` line
   keeps the dashboard cue current. A hand-edit to the pointer wins until a newer log lands
   (mtime comparison).
+- `sync-groceries.mjs` — hybrid sync for `~/JC AI Brain/07-body/7.1-groceries/`, the source for the
+  Groceries tab (`groceries.html`). **Lists are one-way vault → app**, like `sync-projects.mjs`:
+  `list.md` is always the single `common` list; any other `.md` file with frontmatter
+  `type: recipe` becomes a recipe list named after the file, rendered as a tile — deleting the
+  file deletes the list (cascades to its items); the `common` list itself is never deleted.
+  **Items within a list are two-way**, like `sync-tasks.mjs`: checkbox lines carry an
+  `<!-- id:… -->` comment once synced, checking a box in the app checks it in the vault file and
+  vice versa, last-write-wins on conflicts (file mtime vs `updated_at`). Items are grouped by the
+  nearest preceding `## Heading` into the `section` column (null for flat lists like `list.md`);
+  new items added from the app are appended into the matching `## section` block if the file has
+  one, else appended flat at the end.
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.

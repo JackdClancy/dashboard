@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Groceries — Jack's Dashboard</title>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="/apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Geist', 'Inter', 'sans-serif'],
+            mono: ['Geist Mono', 'Fira Code', 'monospace'],
+          },
+          colors: {
+            primary: {
+              50:  '#EAF4FF',
+              100: '#D2E9FF',
+              400: '#409CFF',
+              500: '#0A84FF',
+              600: '#0066CC',
+              700: '#0052A3',
+              800: '#003D7A',
+              900: '#002952',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; }
+    }
+    body { font-family: 'Geist', sans-serif; background: #09090b; }
+    #sidebar { transition: width 280ms cubic-bezier(.4,0,.2,1); }
+    .sidebar-expanded  { width: 240px; }
+    .sidebar-collapsed { width: 64px; }
+    .nav-label { transition: opacity 200ms ease, width 200ms ease; white-space: nowrap; overflow: hidden; }
+    .sidebar-collapsed .nav-label { opacity: 0; width: 0; }
+    #mainContent { transition: margin-left 280ms cubic-bezier(.4,0,.2,1); }
+
+    /* ── Phone layout: sidebar becomes a horizontal top bar ─────── */
+    @media (max-width: 639px) {
+      #sidebar {
+        width: 100% !important;
+        height: 4rem;
+        left: 0;
+        right: 0;
+        flex-direction: row;
+        border-right: 0;
+        border-bottom-width: 1px;
+      }
+      #sidebar > div:first-child,
+      #sidebar > div:last-child { display: none; }
+      #sidebar nav {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-evenly;
+        padding: 0 0.5rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
+      #sidebar nav > a { margin-top: 0; }
+      #sidebar .nav-label { display: none; }
+      #mainContent { margin-left: 0 !important; margin-top: 4rem; }
+      #mainContent > header { top: 4rem; }
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0c0c0e; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+    .bg-ambient { position: fixed; inset: 0; z-index: -10; overflow: hidden; background: #09090b; }
+    .bg-ambient .blob { position: absolute; border-radius: 50%; filter: blur(120px); }
+
+    .glass {
+      background: rgba(255,255,255,0.055);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      backdrop-filter: blur(28px) saturate(160%);
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.10);
+    }
+    .glass-strong {
+      background: rgba(255,255,255,0.04);
+      -webkit-backdrop-filter: blur(32px) saturate(160%);
+      backdrop-filter: blur(32px) saturate(160%);
+      border-color: rgba(255,255,255,0.10);
+    }
+
+    #detailPanel {
+      transform: translateX(100%);
+      transition: transform 320ms cubic-bezier(.4,0,.2,1);
+    }
+    #detailPanel.open { transform: translateX(0); }
+
+    #overlay {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 300ms ease;
+    }
+    #overlay.open { opacity: 1; pointer-events: auto; }
+  </style>
+  <link rel="stylesheet" href="theme.css" />
+</head>
+
+<body class="text-white min-h-screen">
+
+  <!-- ─── Ambient backdrop ────────────────────────────────────── -->
+  <div class="bg-ambient" aria-hidden="true">
+    <div class="blob w-[520px] h-[520px] bg-primary-600/25 -top-48 -left-48"></div>
+    <div class="blob w-[420px] h-[420px] bg-primary-500/15 top-1/3 -right-44"></div>
+    <div class="blob w-[460px] h-[460px] bg-indigo-500/10 bottom-[-160px] left-1/3"></div>
+  </div>
+
+  <!-- ─── Sidebar ─────────────────────────────────────────────── -->
+  <aside id="sidebar" class="sidebar-collapsed glass-strong fixed top-0 left-0 h-full border-r z-30 flex flex-col select-none">
+
+    <div class="flex items-center gap-3 px-4 py-5 border-b border-white/10">
+      <div class="w-8 h-8 rounded-xl bg-[#1f272d] border border-primary-400/60 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(10,132,255,0.65)] overflow-hidden">
+        <img src="logo-mark.png" alt="" class="w-7" />
+      </div>
+      <span class="nav-label font-semibold text-white tracking-tight">Jack's Dashboard</span>
+    </div>
+
+    <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+
+      <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+        <span class="nav-label text-sm">Home</span>
+      </a>
+
+      <a href="gym.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.5 12.75l7.5-7.5 7.5 7.5m-15 6l7.5-7.5 7.5 7.5" />
+        </svg>
+        <span class="nav-label text-sm">Gym</span>
+      </a>
+
+      <a href="finances.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span class="nav-label text-sm">Finances</span>
+      </a>
+
+      <a href="goals.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+        </svg>
+        <span class="nav-label text-sm">Goals</span>
+      </a>
+
+      <a href="consumed.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/55 hover:text-white hover:bg-white/8 transition-colors duration-150 cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <span class="nav-label text-sm">Consumed</span>
+      </a>
+
+      <a href="groceries.html" aria-current="page"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-primary-300 font-medium bg-primary-500/15 border border-primary-400/25 shadow-[0_0_16px_rgba(10,132,255,0.18)] cursor-pointer">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+        </svg>
+        <span class="nav-label text-sm">Groceries</span>
+      </a>
+
+    </nav>
+
+    <div class="border-t border-white/10 p-3">
+      <button id="sidebarToggle" onclick="toggleSidebar()"
+              class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/8 transition-colors duration-150 cursor-pointer"
+              aria-label="Expand sidebar">
+        <svg id="collapseIcon" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+        </svg>
+        <span class="nav-label text-xs">Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ─── Main ─────────────────────────────────────────────────── -->
+  <div id="mainContent" class="ml-16 min-h-screen flex flex-col">
+
+    <header class="sticky top-0 z-20 glass border-b border-white/10 px-6 py-3 flex items-center justify-between">
+      <p id="headerDate" class="text-sm font-medium text-white/55"></p>
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-semibold shadow-[0_0_14px_rgba(10,132,255,0.4)]">JC</div>
+        <span class="text-sm font-medium text-white/80">Jack C.</span>
+      </div>
+    </header>
+
+    <main class="flex-1 px-6 lg:px-8 py-6">
+
+      <div class="mb-6">
+        <h1 class="text-xl font-semibold text-white">Groceries</h1>
+        <p class="text-sm text-white/45 mt-0.5">Common list on the left, recipes on the right.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
+
+        <!-- Common list -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest">Common List</h2>
+          </div>
+
+          <div class="glass rounded-2xl p-4">
+            <div class="flex gap-2 mb-4">
+              <input id="commonItemInput" type="text" placeholder="Add an item…"
+                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
+              <button onclick="addCommonItem()"
+                      class="px-3 py-2 bg-white/10 hover:bg-white/15 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Add</button>
+            </div>
+            <div id="commonList" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <!-- Recipe tiles -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest">Recipes</h2>
+          </div>
+          <div id="recipeTiles" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        </div>
+
+      </div>
+    </main>
+
+    <footer class="px-6 py-4 border-t border-white/10">
+      <p class="text-xs text-white/30">© 2026 Jack's Dashboard</p>
+    </footer>
+  </div>
+
+  <!-- ─── Overlay ───────────────────────────────────────────────── -->
+  <div id="overlay" onclick="closeDetail()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40"></div>
+
+  <!-- ─── Detail slide panel (recipe items) ─────────────────────── -->
+  <div id="detailPanel" class="fixed top-0 right-0 h-full w-full sm:w-[480px] glass-strong border-l z-50 flex flex-col">
+
+    <div class="flex items-center gap-3 px-5 py-4 border-b border-white/10 flex-shrink-0">
+      <button onclick="closeDetail()"
+              class="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Close">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+      <h2 id="panelTitle" class="text-sm font-semibold text-white truncate flex-1"></h2>
+      <p id="panelCount" class="text-xs text-white/40 flex-shrink-0"></p>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-5 py-5">
+      <div id="panelItems" class="space-y-5"></div>
+
+      <div class="flex gap-2 mt-5">
+        <input id="panelItemInput" type="text" placeholder="Add an item…"
+               class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
+        <button onclick="addPanelItem()"
+                class="px-3 py-2 bg-white/10 hover:bg-white/15 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Sidebar ──────────────────────────────────────────────────
+    let expanded = false;
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const main    = document.getElementById('mainContent');
+      const icon    = document.getElementById('collapseIcon');
+      expanded = !expanded;
+      sidebar.classList.toggle('sidebar-expanded',  expanded);
+      sidebar.classList.toggle('sidebar-collapsed', !expanded);
+      main.classList.toggle('ml-60', expanded);
+      main.classList.toggle('ml-16', !expanded);
+      icon.innerHTML = expanded
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>';
+      document.getElementById('sidebarToggle').setAttribute('aria-label', expanded ? 'Collapse sidebar' : 'Expand sidebar');
+    }
+
+    // ── Date header ──────────────────────────────────────────────
+    const now    = new Date();
+    const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    function fmtDMY(d){
+      const dt = d instanceof Date ? d : new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(d)) ? d + 'T00:00:00' : d);
+      if (isNaN(dt)) return String(d);
+      const p = n => String(n).padStart(2, '0');
+      return `${p(dt.getDate())}-${p(dt.getMonth()+1)}-${String(dt.getFullYear()).slice(-2)}`;
+    }
+    document.getElementById('headerDate').textContent =
+      `${DAYS[now.getDay()]}, ${fmtDMY(now)}`;
+
+    // ── Supabase ─────────────────────────────────────────────────
+    let supabaseClient = null;
+    let listsCache = [];
+    let itemsCache = [];
+
+    async function initSupabase() {
+      try {
+        const cfgRes = await fetch('/api/config');
+        const cfg = await cfgRes.json();
+        if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) throw new Error('Supabase is not configured');
+        supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+        await loadGroceries();
+        supabaseClient
+          .channel('groceries-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'grocery_lists' }, () => loadGroceries())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'grocery_items' }, () => loadGroceries())
+          .subscribe();
+      } catch (e) {
+        document.getElementById('commonList').innerHTML =
+          `<p class="text-sm text-red-400 text-center py-8">Couldn't connect: ${esc(e.message)}</p>`;
+      }
+    }
+
+    async function loadGroceries() {
+      const [{ data: lists, error: listsErr }, { data: items, error: itemsErr }] = await Promise.all([
+        supabaseClient.from('grocery_lists').select('*'),
+        supabaseClient.from('grocery_items').select('*').order('sort_order', { ascending: true }),
+      ]);
+      if (listsErr)  { console.error('Load lists failed:', listsErr);  return; }
+      if (itemsErr)  { console.error('Load items failed:', itemsErr);  return; }
+      listsCache = lists || [];
+      itemsCache = items || [];
+      renderAll();
+      if (activeListId) refreshPanel();
+    }
+
+    function itemsForList(listId) {
+      return itemsCache.filter(i => i.list_id === listId);
+    }
+
+    // Groups items by section, preserving first-appearance order (already
+    // sorted by sort_order). Ungrouped items (section: null) come first.
+    function groupBySection(items) {
+      const groups = [];
+      const bySection = new Map();
+      for (const item of items) {
+        const key = item.section || null;
+        if (!bySection.has(key)) {
+          const group = { section: key, items: [] };
+          bySection.set(key, group);
+          groups.push(group);
+        }
+        bySection.get(key).items.push(item);
+      }
+      return groups;
+    }
+
+    // ── Render ───────────────────────────────────────────────────
+    function renderAll() {
+      renderCommonList();
+      renderRecipeTiles();
+    }
+
+    function itemRow(item) {
+      return `
+        <div class="flex items-center gap-2.5 group/item">
+          <button onclick="toggleItem('${item.id}', ${!item.checked})"
+                  class="w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${item.checked ? 'bg-primary-500 border-primary-400' : 'border-white/20 hover:border-white/40'}">
+            ${item.checked ? '<svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}
+          </button>
+          <span class="text-sm flex-1 leading-snug ${item.checked ? 'text-white/35 line-through' : 'text-white/85'}">${esc(item.text)}</span>
+          <button onclick="deleteItem('${item.id}')"
+                  class="opacity-0 group-hover/item:opacity-100 p-1 text-white/25 hover:text-red-400 transition-all flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>`;
+    }
+
+    function renderCommonList() {
+      const el = document.getElementById('commonList');
+      const common = listsCache.find(l => l.kind === 'common');
+      if (!common) { el.innerHTML = '<p class="text-sm text-white/30 text-center py-8">Common list not synced yet.</p>'; return; }
+      const items = itemsForList(common.id);
+      if (!items.length) { el.innerHTML = '<p class="text-sm text-white/30 text-center py-6">No items yet.</p>'; return; }
+      el.innerHTML = groupBySection(items).map(g => `
+        ${g.section ? `<h3 class="text-[11px] font-semibold text-white/35 uppercase tracking-widest mt-4 mb-2 first:mt-0">${esc(g.section)}</h3>` : ''}
+        <div class="space-y-2">${g.items.map(itemRow).join('')}</div>
+      `).join('');
+    }
+
+    function renderRecipeTiles() {
+      const el = document.getElementById('recipeTiles');
+      const recipes = listsCache.filter(l => l.kind === 'recipe').sort((a, b) => a.name.localeCompare(b.name));
+      if (!recipes.length) {
+        el.innerHTML = `<p class="text-sm text-white/30 py-8 sm:col-span-2 xl:col-span-3">
+          Add a recipe page to <span class="font-mono text-white/40">7.1-groceries</span> in Obsidian to see it here.</p>`;
+        return;
+      }
+      el.innerHTML = recipes.map(r => {
+        const items = itemsForList(r.id);
+        const checkedCount = items.filter(i => i.checked).length;
+        return `
+          <div onclick="openDetail('${r.id}')"
+               class="glass rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-colors group">
+            <div class="flex items-start justify-between gap-2">
+              <p class="text-sm font-medium text-white/90 group-hover:text-white transition-colors leading-snug">${esc(r.name)}</p>
+              <svg class="w-4 h-4 text-white/25 group-hover:text-white/55 flex-shrink-0 mt-0.5 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
+            </div>
+            <p class="text-xs text-white/40 mt-1.5">${checkedCount}/${items.length} item${items.length !== 1 ? 's' : ''}</p>
+          </div>`;
+      }).join('');
+    }
+
+    // ── Common list add ──────────────────────────────────────────
+    async function addCommonItem() {
+      const input = document.getElementById('commonItemInput');
+      const text = input.value.trim();
+      const common = listsCache.find(l => l.kind === 'common');
+      if (!text || !common || !supabaseClient) return;
+      const sort_order = itemsForList(common.id).length;
+      const { error } = await supabaseClient.from('grocery_items')
+        .insert({ list_id: common.id, section: null, text, checked: false, sort_order });
+      if (error) { console.error('Add item failed:', error); return; }
+      input.value = '';
+      await loadGroceries();
+    }
+    document.getElementById('commonItemInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addCommonItem();
+    });
+
+    // ── Item toggle / delete ────────────────────────────────────
+    async function toggleItem(id, checked) {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.from('grocery_items').update({ checked }).eq('id', id);
+      if (error) { console.error('Toggle item failed:', error); return; }
+      await loadGroceries();
+    }
+
+    async function deleteItem(id) {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.from('grocery_items').delete().eq('id', id);
+      if (error) { console.error('Delete item failed:', error); return; }
+      await loadGroceries();
+    }
+
+    // ── Detail panel (recipe) ────────────────────────────────────
+    let activeListId = null;
+
+    function openDetail(listId) {
+      activeListId = listId;
+      refreshPanel();
+      document.getElementById('detailPanel').classList.add('open');
+      document.getElementById('overlay').classList.add('open');
+      setTimeout(() => document.getElementById('panelItemInput').focus(), 320);
+    }
+
+    function refreshPanel() {
+      const list = listsCache.find(l => l.id === activeListId);
+      if (!list) return;
+      const items = itemsForList(list.id);
+      const checkedCount = items.filter(i => i.checked).length;
+
+      document.getElementById('panelTitle').textContent = list.name;
+      document.getElementById('panelCount').textContent = `${checkedCount}/${items.length}`;
+
+      const el = document.getElementById('panelItems');
+      if (!items.length) {
+        el.innerHTML = '<p class="text-sm text-white/30 text-center py-8">No items yet.</p>';
+        return;
+      }
+      el.innerHTML = groupBySection(items).map(g => `
+        <div>
+          ${g.section ? `<h3 class="text-[11px] font-semibold text-white/40 uppercase tracking-widest mb-2.5">${esc(g.section)}</h3>` : ''}
+          <div class="space-y-2">${g.items.map(itemRow).join('')}</div>
+        </div>
+      `).join('');
+    }
+
+    function closeDetail() {
+      document.getElementById('detailPanel').classList.remove('open');
+      document.getElementById('overlay').classList.remove('open');
+      activeListId = null;
+    }
+
+    async function addPanelItem() {
+      const input = document.getElementById('panelItemInput');
+      const text = input.value.trim();
+      const list = listsCache.find(l => l.id === activeListId);
+      if (!text || !list || !supabaseClient) return;
+      const sort_order = itemsForList(list.id).length;
+      const { error } = await supabaseClient.from('grocery_items')
+        .insert({ list_id: list.id, section: null, text, checked: false, sort_order });
+      if (error) { console.error('Add item failed:', error); return; }
+      input.value = '';
+      await loadGroceries();
+    }
+    document.getElementById('panelItemInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addPanelItem();
+    });
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+
+    // ── XSS guard ────────────────────────────────────────────────
+    function esc(str) {
+      return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Init ─────────────────────────────────────────────────────
+    initSupabase();
+  </script>
+
+</body>
+</html>
