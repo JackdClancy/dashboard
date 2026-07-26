@@ -30,16 +30,20 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   keeps the dashboard cue current. A hand-edit to the pointer wins until a newer log lands
   (mtime comparison).
 - `sync-groceries.mjs` — hybrid sync for `~/JC AI Brain/07-body/7.1-groceries/`, the source for the
-  Groceries tab (`groceries.html`). **Lists are one-way vault → app**, like `sync-projects.mjs`:
-  `list.md` is always the single `common` list; any other `.md` file with frontmatter
-  `type: recipe` becomes a recipe list named after the file, rendered as a tile — deleting the
-  file deletes the list (cascades to its items); the `common` list itself is never deleted.
+  Groceries tab (`groceries.html`, three columns: Common List / Recipes / Master List).
+  **Lists are one-way vault → app**, like `sync-projects.mjs`: `list.md` is always the single
+  `common` list, `master.md` is always the single `master` list (a catalog to pick from — its
+  "Add" button in the app copies an item into the common list, skipped if an item with the same
+  text is already there), and any other `.md` file with frontmatter `type: recipe` becomes a
+  recipe list named after the file, rendered as a tile. Deleting a recipe file deletes its list
+  (cascades to its items); `common` and `master` are singleton lists and are never deleted.
   **Items within a list are two-way**, like `sync-tasks.mjs`: checkbox lines carry an
   `<!-- id:… -->` comment once synced, checking a box in the app checks it in the vault file and
-  vice versa, last-write-wins on conflicts (file mtime vs `updated_at`). Items are grouped by the
-  nearest preceding `## Heading` into the `section` column (null for flat lists like `list.md`);
-  new items added from the app are appended into the matching `## section` block if the file has
-  one, else appended flat at the end.
+  vice versa, last-write-wins on conflicts (file mtime vs `updated_at`) — the `checked` state is
+  unused/ignored in the UI for master-list items, which aren't meant to be checked off. Items are
+  grouped by the nearest preceding `## Heading` into the `section` column (null for flat lists
+  like `list.md`/`master.md`); new items added from the app are appended into the matching
+  `## section` block if the file has one, else appended flat at the end.
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.

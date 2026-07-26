@@ -70,6 +70,7 @@ function parseItemLine(line) {
 function classify(path) {
   const name = basename(path);
   if (name === 'list.md') return { slug: 'common', name: 'Common', kind: 'common' };
+  if (name === 'master.md') return { slug: 'master', name: 'Master List', kind: 'master' };
   if (!name.endsWith('.md')) return null;
   const raw = readFileSync(path, 'utf8');
   const m = raw.match(/^---\n([\s\S]*?)\n---\n?/);
@@ -122,9 +123,10 @@ for (const f of files) {
   }
 }
 
-// Vault is the sole author of which recipe lists exist; 'common' is never deleted.
+// Vault is the sole author of which recipe lists exist; 'common' and 'master' are
+// singleton lists that are never deleted, even if their file briefly can't be read.
 for (const l of dbLists) {
-  if (l.kind === 'common' || seenSlugs.has(l.slug)) continue;
+  if (l.kind === 'common' || l.kind === 'master' || seenSlugs.has(l.slug)) continue;
   await rest('DELETE', `grocery_lists?id=eq.${l.id}`); // cascades to grocery_items
   listsDeleted++;
   console.log(`- list "${l.name}" deleted (no file for slug "${l.slug}")`);

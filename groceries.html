@@ -209,10 +209,10 @@
 
       <div class="mb-6">
         <h1 class="text-xl font-semibold text-white">Groceries</h1>
-        <p class="text-sm text-white/45 mt-0.5">Common list on the left, recipes on the right.</p>
+        <p class="text-sm text-white/45 mt-0.5">Common list, recipes, and a master catalog to pick from.</p>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
         <!-- Common list -->
         <div>
@@ -236,7 +236,24 @@
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest">Recipes</h2>
           </div>
-          <div id="recipeTiles" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+          <div id="recipeTiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4"></div>
+        </div>
+
+        <!-- Master list -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest">Master List</h2>
+          </div>
+
+          <div class="glass rounded-2xl p-4">
+            <div class="flex gap-2 mb-4">
+              <input id="masterItemInput" type="text" placeholder="Add to catalog…"
+                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
+              <button onclick="addMasterItem()"
+                      class="px-3 py-2 bg-white/10 hover:bg-white/15 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Add</button>
+            </div>
+            <div id="masterList" class="space-y-2"></div>
+          </div>
         </div>
 
       </div>
@@ -368,6 +385,7 @@
     function renderAll() {
       renderCommonList();
       renderRecipeTiles();
+      renderMasterList();
     }
 
     function itemRow(item) {
@@ -403,7 +421,7 @@
       const el = document.getElementById('recipeTiles');
       const recipes = listsCache.filter(l => l.kind === 'recipe').sort((a, b) => a.name.localeCompare(b.name));
       if (!recipes.length) {
-        el.innerHTML = `<p class="text-sm text-white/30 py-8 sm:col-span-2 xl:col-span-3">
+        el.innerHTML = `<p class="text-sm text-white/30 py-8 sm:col-span-2 xl:col-span-2">
           Add a recipe page to <span class="font-mono text-white/40">7.1-groceries</span> in Obsidian to see it here.</p>`;
         return;
       }
@@ -424,6 +442,39 @@
       }).join('');
     }
 
+    // Master items aren't checked off — each row offers "Add" (copies into the
+    // common list) and a hover delete (removes it from the catalog itself).
+    function itemRowMaster(item) {
+      return `
+        <div class="flex items-center gap-2 group/item">
+          <span class="text-sm flex-1 leading-snug text-white/85">${esc(item.text)}</span>
+          <button onclick="addToCommon('${item.id}')"
+                  class="px-2 py-1 text-[11px] font-medium bg-primary-500/15 hover:bg-primary-500/25 text-primary-300 rounded-full transition-colors flex-shrink-0">Add</button>
+          <button onclick="deleteItem('${item.id}')"
+                  class="opacity-0 group-hover/item:opacity-100 p-1 text-white/25 hover:text-red-400 transition-all flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>`;
+    }
+
+    function renderMasterList() {
+      const el = document.getElementById('masterList');
+      const master = listsCache.find(l => l.kind === 'master');
+      if (!master) { el.innerHTML = '<p class="text-sm text-white/30 text-center py-8">Master list not synced yet.</p>'; return; }
+      const items = itemsForList(master.id);
+      if (!items.length) {
+        el.innerHTML = `<p class="text-sm text-white/30 text-center py-6">No items yet — add one above, or edit
+          <span class="font-mono text-white/40">7.1-groceries/master.md</span> in Obsidian.</p>`;
+        return;
+      }
+      el.innerHTML = groupBySection(items).map(g => `
+        ${g.section ? `<h3 class="text-[11px] font-semibold text-white/35 uppercase tracking-widest mt-4 mb-2 first:mt-0">${esc(g.section)}</h3>` : ''}
+        <div class="space-y-2">${g.items.map(itemRowMaster).join('')}</div>
+      `).join('');
+    }
+
     // ── Common list add ──────────────────────────────────────────
     async function addCommonItem() {
       const input = document.getElementById('commonItemInput');
@@ -440,6 +491,40 @@
     document.getElementById('commonItemInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') addCommonItem();
     });
+
+    // ── Master list add / add-to-common ─────────────────────────
+    async function addMasterItem() {
+      const input = document.getElementById('masterItemInput');
+      const text = input.value.trim();
+      const master = listsCache.find(l => l.kind === 'master');
+      if (!text || !master || !supabaseClient) return;
+      const sort_order = itemsForList(master.id).length;
+      const { error } = await supabaseClient.from('grocery_items')
+        .insert({ list_id: master.id, section: null, text, checked: false, sort_order });
+      if (error) { console.error('Add master item failed:', error); return; }
+      input.value = '';
+      await loadGroceries();
+    }
+    document.getElementById('masterItemInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addMasterItem();
+    });
+
+    // Copies a master item into the common list. Skips if an item with the
+    // same text (case/whitespace-insensitive) is already on the common list.
+    async function addToCommon(masterItemId) {
+      const master = listsCache.find(l => l.kind === 'master');
+      const item = itemsCache.find(i => i.id === masterItemId);
+      const common = listsCache.find(l => l.kind === 'common');
+      if (!master || !item || !common || !supabaseClient) return;
+      const norm = s => s.trim().toLowerCase();
+      const alreadyThere = itemsForList(common.id).some(i => norm(i.text) === norm(item.text));
+      if (alreadyThere) return;
+      const sort_order = itemsForList(common.id).length;
+      const { error } = await supabaseClient.from('grocery_items')
+        .insert({ list_id: common.id, section: null, text: item.text, checked: false, sort_order });
+      if (error) { console.error('Add to common failed:', error); return; }
+      await loadGroceries();
+    }
 
     // ── Item toggle / delete ────────────────────────────────────
     async function toggleItem(id, checked) {
