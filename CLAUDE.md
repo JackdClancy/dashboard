@@ -44,6 +44,25 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   grouped by the nearest preceding `## Heading` into the `section` column (null for flat lists
   like `list.md`/`master.md`); new items added from the app are appended into the matching
   `## section` block if the file has one, else appended flat at the end.
+- `sync-finances.mjs` — **one-way Akahu → app**: works out what kind of establishment each
+  merchant is, and caches the answer in the `merchant_rules` table so `finances.html` never guesses
+  twice (added 2026-08-18, replacing keyword matching — see "Finance categorisation" below).
+  Imports the shared taxonomy from `finance-taxonomy.mjs`. Resolution per merchant, first hit wins:
+  a `manual` override Jack tapped in the app (never overwritten here) → a house rule (personal
+  strings like "Flat Account" that no lookup can resolve) → Akahu's own NZFCC classification
+  (`transaction.category.name`, e.g. "Bars, pubs, nightclubs") mapped to Jack's buckets → headless
+  `claude -p` (`FINANCE_TRIAGE_MODEL`, default haiku) identifying the business by name, with an
+  optional second pass allowed WebSearch (`FINANCE_WEB_LOOKUP=0` to disable, `FINANCE_MAX_WEB`
+  cap) for local businesses the model doesn't know cold. **A merchant the model can't identify is
+  deliberately left unwritten**, so it surfaces in the app's "Unreviewed" bucket rather than being
+  silently filed as `Other` — a confidently-wrong bucket corrupts the spending totals, an unknown
+  doesn't. Because the job runs every 15 min, failed identifications are recorded in
+  `scripts/.sync-state-finances.json` (gitignored) with a backoff — `FINANCE_MAX_ATTEMPTS` (3) then
+  never again — so flatmates' names on bank transfers aren't re-sent to the model forever. Rules
+  are written for BOTH the merchant key and the Akahu category name: the category rule instantly
+  covers a brand-new shop of a known type, and the merchant rule catches rows Akahu didn't enrich
+  (an EFTPOS purchase at a bar is enriched, the ATM withdrawal at the same bar isn't). `DRY_RUN=1`
+  previews without writing, and works even before the table exists.
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.
@@ -161,9 +180,47 @@ All three insert directly to Supabase via the public anon key (same pattern as
   home News tile. Self-throttles to one fetch per `refresh_hours` (20); `FORCE_NEWS=1` overrides.
 
 DB details: `goals` and `todos` both have `updated_at` + `set_updated_at()` trigger (added
-2026-07-03 for conflict resolution). RLS is enabled but policies are fully public — the anon key
-can read/write; tightening is a known follow-up. The app pages subscribe to Supabase Realtime, so
+2026-07-03 for conflict resolution). `merchant_rules` (added 2026-08-18, DDL in
+`supabase/migrations/`) is keyed `(kind, key)` where kind is `merchant` or `akahu_category`, with a
+`source` column (`manual` | `rule` | `akahu` | `ai`) — `sync-finances.mjs` never overwrites a row
+whose source is `manual`, which is what protects Jack's own corrections. RLS is enabled but
+policies are fully public — the anon key can read/write; tightening is a known follow-up. The app pages subscribe to Supabase Realtime, so
 bridge writes appear in the open app without reloads.
+
+## Finance categorisation (reworked 2026-08-18)
+
+`finances.html` used to keyword-match the merchant name (`'woolworths'`, `'bar'`, `'bp'`) and drop
+everything else into `Other` — which was 41% of spend by dollar value across Jack's history. Two
+things were wrong, and both are worth not reintroducing:
+
+1. **Akahu already classifies the establishment** and the app was discarding it. Every transaction
+   carries `category.name` (NZFCC, a controlled vocabulary: "Supermarkets and grocery stores",
+   "Bars, pubs, nightclubs", "Fuel stations"). The old mapper collapsed `merchant.name` into a
+   field it *called* `category`, which is exactly what hid the real one. Transactions now keep
+   `merchant`, `description` and `akahuCategory` as separate fields — don't merge them again.
+2. **Substring matching without word boundaries mis-files money**, which is worse than leaving it
+   unrecognised: `'bar'` matched "Chiwahwah Mexican Cantina Bar" (a restaurant), `'bus'` matches
+   "business". Any pattern in `finance-taxonomy.mjs` must be word-boundary anchored, and the
+   house-rule list is deliberately tiny — new merchants belong in `merchant_rules`, not in code.
+
+The taxonomy lives in `scripts/finance-taxonomy.mjs` (bridge-side only). `finances.js` is a dumb
+consumer: it looks a transaction's merchant key up in `merchant_rules`, falls back to the Akahu
+category rule, and otherwise shows **Unreviewed** — a visible bucket distinct from `Other`
+(`Other` means "no bucket fits"; `Unreviewed` means "not identified yet"). Tapping a category row
+expands the merchants behind it, and reassigning one writes a `manual` rule keyed by merchant, so
+the correction applies to every past and future transaction from that merchant. Overrides are keyed
+by merchant rather than transaction id precisely because reloading from Akahu replaces the whole
+local transaction list.
+
+`normaliseKey()` is **duplicated** in `scripts/finance-taxonomy.mjs` and `finances.js` (same
+convention as `fmtDMY`) — the browser must look rules up under the exact key the bridge writes.
+Change one, change the other. It strips digit runs of 5+ anywhere in the string (card numbers and
+per-transaction references rotate every visit, so leaving them in gives the same shop a new key
+each time) but deliberately does not truncate from the first long number, because bank descriptions
+put the useful part *after* the card number: `WITHDRAWAL 556806696324 The Cafe 2 C 1212142138`.
+
+`/api/akahu.js` follows Akahu's `cursor.next` up to 5 pages. One page is 100 transactions ≈ 4 weeks
+of Jack's spending, which silently truncated the Monthly view before this.
 
 ## Phone-only layout edits
 

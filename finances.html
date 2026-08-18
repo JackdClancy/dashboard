@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     tailwind.config = {
@@ -217,7 +218,11 @@
 
       <section id="categories" class="card">
         <h2>Categories</h2>
+        <p id="categoryNote" class="cat-note"></p>
         <div id="categoryList"></div>
+        <p id="rulesStatus" class="rules-status"></p>
+        <p class="cat-help">Tap a category to see what's in it. Anything filed wrongly can be moved —
+          the change is remembered for that merchant from then on.</p>
       </section>
 
       <section id="savings" class="card">

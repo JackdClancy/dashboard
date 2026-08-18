@@ -62,12 +62,61 @@
 }
 .tx:last-child { border-bottom: none; }
 
+/* Transaction rows */
+.tx { display: flex; align-items: center; gap: 10px; }
+.tx-date { font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.75rem; color: rgba(255,255,255,0.4); flex-shrink: 0; }
+.tx-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-cat { font-size: 0.7rem; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.5); flex-shrink: 0; }
+.tx-cat.unreviewed { background: rgba(255,180,60,0.12); color: rgba(255,190,90,0.9); }
+.tx-amt { font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.8rem; min-width: 78px; text-align: right; flex-shrink: 0; }
+
 /* Categories */
+.cat-note { margin: 0 0 12px 0; }
+.cat-note strong { color: rgba(255,190,90,0.95); }
+.cat-help { margin: 12px 0 0 0; font-size: 0.75rem !important; color: rgba(255,255,255,0.35) !important; }
+.rules-status { margin: 12px 0 0 0; font-size: 0.72rem !important; color: rgba(255,255,255,0.3) !important; }
+.rules-status.warn { color: rgba(255,150,90,0.8) !important; }
+
 .category { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; gap: 14px; }
-.category > div:first-child { font-size: 0.85rem; color: rgba(255,255,255,0.75); min-width: 100px; }
+.category.clickable { cursor: pointer; }
+.category.clickable:hover .cat-name { color: #fff; }
+.cat-name { font-size: 0.85rem; color: rgba(255,255,255,0.75); min-width: 100px; display: flex; align-items: center; gap: 6px; }
+.cat-count { font-size: 0.65rem; padding: 1px 6px; border-radius: 999px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.45); }
+.category.is-unreviewed .cat-name { color: rgba(255,190,90,0.95); }
+.category.is-unreviewed .bar > i { background: linear-gradient(90deg, rgba(255,200,110,0.9), rgba(255,160,50,0.9)); }
+
 .bar { height: 10px; background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; flex: 1; }
 .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-light), var(--accent)); border-radius: 6px; }
-.category > div:last-child { font-size: 0.8rem; font-family: 'Geist Mono', 'Fira Code', monospace; color: rgba(255,255,255,0.55); min-width: 70px; text-align: right; }
+.cat-amt { font-size: 0.8rem; font-family: 'Geist Mono', 'Fira Code', monospace; color: rgba(255,255,255,0.55); min-width: 70px; text-align: right; }
+
+/* Expanded category: the merchants behind the number */
+.cat-detail {
+  margin: 2px 0 10px 0; padding: 6px 12px;
+  background: rgba(0,0,0,0.22); border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.merchant { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.merchant:last-child { border-bottom: none; }
+.merchant-name { flex: 1; font-size: 0.8rem; color: rgba(255,255,255,0.8); min-width: 0; }
+.merchant-why { display: block; font-size: 0.68rem; color: rgba(255,255,255,0.33); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.merchant-amt { font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.78rem; color: rgba(255,255,255,0.6); flex-shrink: 0; }
+.merchant-count { color: rgba(255,255,255,0.3); font-size: 0.7rem; }
+.merchant-pick {
+  flex-shrink: 0; padding: 4px 8px; border-radius: 8px;
+  background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.75);
+  border: 1px solid rgba(255,255,255,0.10);
+  font-size: 0.72rem; font-family: 'Geist', sans-serif; cursor: pointer;
+}
+.merchant-pick:focus { outline: none; border-color: rgba(10,132,255,0.5); }
+.merchant-pick option { background: #1a1a1f; color: #fff; }
+
+@media (max-width: 639px) {
+  .tx-date { display: none; }
+  .cat-name { min-width: 76px; font-size: 0.8rem; }
+  .cat-amt { min-width: 62px; }
+  .merchant { flex-wrap: wrap; }
+  .merchant-name { flex-basis: 100%; }
+}
 
 /* Savings goal */
 #savings input[type="number"] { width: 100px; }
