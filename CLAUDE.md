@@ -63,6 +63,15 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   covers a brand-new shop of a known type, and the merchant rule catches rows Akahu didn't enrich
   (an EFTPOS purchase at a bar is enriched, the ATM withdrawal at the same bar isn't). `DRY_RUN=1`
   previews without writing, and works even before the table exists.
+- `sync-budget.mjs` — **one-way vault → app**: parses the "The budget — 8 categories" table in
+  `~/JC AI Brain/10-finances/weekly-budget.md` → `app_state` key `budget` (added 2026-08-18). The
+  vault note is the only author — edit the budget in Obsidian and the bars move on the next run.
+  Only rows whose first cell is exactly one of the eight categories count, which skips the
+  "**Set so far**" total row and the income table. A cell that isn't a number (the note ships
+  `Other` as `_set this_`) syncs as `null`, and the page renders that category without a target
+  rather than inventing one. Kept separate from `sync-finances.mjs` deliberately: that script
+  exits early when Akahu credentials or the `merchant_rules` table are missing, which would
+  silently take the budget sync down with it.
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.
@@ -221,6 +230,21 @@ put the useful part *after* the card number: `WITHDRAWAL 556806696324 The Cafe 2
 
 `/api/akahu.js` follows Akahu's `cursor.next` up to 5 pages. One page is 100 transactions ≈ 4 weeks
 of Jack's spending, which silently truncated the Monthly view before this.
+
+### Budget bars (added 2026-08-18)
+
+Each category bar is scaled to its **budget**, not to the largest category: the end of the bar is
+the budgeted number, so a full bar means the budget is spent, and the bar turns red at that point
+(`.over-budget`, capped at 100% width — there's no partial over-budget state, "full and red" always
+means spent). The right-hand column shows the spend with `of $X` underneath, switching to `$X over`
+once past it.
+
+Budgets arrive from the vault via `sync-budget.mjs` and are **weekly**, so the page scales them to
+whatever range is selected (`weekly × days / 7`) rather than comparing a month's spend against a
+week's target. Categories with no budget (`Other` is unset in the note, and `Unreviewed` never has
+one) render `.no-budget`: a muted grey bar sized relative to the largest category, labelled "no
+budget" so it doesn't imply a target exists. Note that weekly view looks alarming for lumpy
+categories — rent lands in one week and blows a weekly rent budget by definition.
 
 ## Phone-only layout edits
 

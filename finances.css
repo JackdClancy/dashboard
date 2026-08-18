@@ -86,8 +86,25 @@
 .category.is-unreviewed .bar > i { background: linear-gradient(90deg, rgba(255,200,110,0.9), rgba(255,160,50,0.9)); }
 
 .bar { height: 10px; background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; flex: 1; }
-.bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-light), var(--accent)); border-radius: 6px; }
-.cat-amt { font-size: 0.8rem; font-family: 'Geist Mono', 'Fira Code', monospace; color: rgba(255,255,255,0.55); min-width: 70px; text-align: right; }
+.bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-light), var(--accent)); border-radius: 6px; transition: width 300ms ease; }
+
+/* The end of the bar is the budget. Once spending reaches it the bar is full
+   and turns red — no partial state, so "full and red" always means "spent". */
+.category.over-budget .bar > i { background: linear-gradient(90deg, #FF6B5A, #FF3B30); }
+.category.over-budget .cat-amt { color: #FF6B5A; }
+.category.over-budget .cat-budget { color: rgba(255,107,90,0.85); }
+.category.over-budget .cat-name { color: rgba(255,255,255,0.9); }
+
+/* No target set in the vault note — bar is proportional to the largest
+   category instead, and says so, rather than implying a budget exists. */
+.category.no-budget .bar > i { background: rgba(255,255,255,0.22); }
+
+.cat-amt {
+  font-size: 0.8rem; font-family: 'Geist Mono', 'Fira Code', monospace;
+  color: rgba(255,255,255,0.72); min-width: 96px; text-align: right;
+  display: flex; flex-direction: column; line-height: 1.25;
+}
+.cat-budget { font-size: 0.68rem; color: rgba(255,255,255,0.35); font-family: 'Geist', sans-serif; }
 
 /* Expanded category: the merchants behind the number */
 .cat-detail {
@@ -113,7 +130,7 @@
 @media (max-width: 639px) {
   .tx-date { display: none; }
   .cat-name { min-width: 76px; font-size: 0.8rem; }
-  .cat-amt { min-width: 62px; }
+  .cat-amt { min-width: 78px; }
   .merchant { flex-wrap: wrap; }
   .merchant-name { flex-basis: 100%; }
 }

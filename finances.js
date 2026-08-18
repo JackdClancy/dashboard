@@ -77,6 +77,10 @@
 
   // merchant key -> {category, source, evidence}; akahu category name -> same
   const rules = { merchant: new Map(), akahuCategory: new Map() };
+  // Weekly budget per category, from the vault via sync-budget.mjs. A category
+  // with no target stays null — the bar renders without one rather than
+  // inventing a number.
+  let budgets = {};
   let supabaseClient = null;
   let expanded = null;   // which category row is open
 
@@ -108,8 +112,10 @@
           .subscribe();
       }
 
-      const { data, error } = await supabaseClient
-        .from('merchant_rules').select('key,kind,category,source,evidence');
+      const [{ data, error }, budgetRow] = await Promise.all([
+        supabaseClient.from('merchant_rules').select('key,kind,category,source,evidence'),
+        supabaseClient.from('app_state').select('data').eq('key', 'budget').maybeSingle(),
+      ]);
       if (error) throw error;
 
       rules.merchant.clear(); rules.akahuCategory.clear();
@@ -117,7 +123,11 @@
         const target = r.kind === 'akahu_category' ? rules.akahuCategory : rules.merchant;
         target.set(r.key, { category: r.category, source: r.source, evidence: r.evidence });
       }
-      status.textContent = `${rules.merchant.size} merchant rules, ${rules.akahuCategory.size} establishment types known.`;
+      budgets = budgetRow?.data?.data?.budgets || {};
+
+      const budgeted = Object.values(budgets).filter(v => v != null).length;
+      status.textContent = `${rules.merchant.size} merchant rules, ${rules.akahuCategory.size} establishment types known.`
+        + (budgeted ? ` Budgets for ${budgeted} categories from the vault.` : ' No budget synced yet.');
       status.classList.remove('warn');
     } catch (e) {
       // A transient failure here looks exactly like the bug this whole rework
@@ -281,6 +291,13 @@
     const container = document.getElementById('categoryList');
     container.innerHTML = '';
 
+    // Budgets from the vault are weekly, so scale them to whatever range is
+    // selected rather than comparing a month's spend against a week's target.
+    const days = Math.max(1, Math.round((Date.now() - cutoff().getTime()) / 86400000));
+    const budgetFor = c => (budgets[c] == null ? null : budgets[c] * days / 7);
+
+    // Only used for categories with no budget set, so they still show
+    // something proportional instead of an empty track.
     const max = Math.max(...Object.values(totals).map(v => v.total), 1);
     const rows = [...CATEGORIES];
     if (totals[UNREVIEWED].total > 0) rows.push(UNREVIEWED);
@@ -288,14 +305,25 @@
     for (const c of rows) {
       const { total, merchants } = totals[c];
       const isUnreviewed = c === UNREVIEWED;
+      const budget = budgetFor(c);
+      const over = budget != null && total >= budget;
+
+      // With a budget, the end of the bar IS the budget — so a full bar means
+      // the budget is spent, and it goes red at that point.
+      const width = budget != null
+        ? Math.min(total / budget, 1) * 100
+        : total / max * 100;
 
       const row = document.createElement('div');
       row.className = 'category' + (isUnreviewed ? ' is-unreviewed' : '')
+        + (over ? ' over-budget' : '') + (budget == null ? ' no-budget' : '')
         + (merchants.size ? ' clickable' : '');
       row.innerHTML = `<div class="cat-name">${esc(c)}`
         + (merchants.size ? ` <span class="cat-count">${merchants.size}</span>` : '')
-        + `</div><div class="bar"><i style="width:${total / max * 100}%"></i></div>`
-        + `<div class="cat-amt">${money(total)}</div>`;
+        + `</div><div class="bar"><i style="width:${width}%"></i></div>`
+        + `<div class="cat-amt">${money(total)}`
+        + `<span class="cat-budget">${budget == null ? 'no budget'
+          : over ? `${money(total - budget)} over` : `of ${money(budget)}`}</span></div>`;
 
       if (merchants.size) {
         row.addEventListener('click', () => {
