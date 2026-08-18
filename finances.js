@@ -105,10 +105,17 @@
         if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) throw new Error('Supabase is not configured');
         supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
         supabaseClient
-          .channel('merchant_rules_changes')
+          .channel('finances_changes')
           // Wrapped, not passed directly: the payload arg would land in loadRules'
           // `attempt` parameter and disable its retry path.
           .on('postgres_changes', { event: '*', schema: 'public', table: 'merchant_rules' }, () => loadRules())
+          // Budget edits made in Obsidian land here via sync-budget.mjs, so an
+          // open dashboard re-reads them without a reload. Filtered to the
+          // budget key on purpose — app_state also carries mail, calendar, news
+          // and consumed, which change constantly and would refetch for nothing.
+          .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'app_state', filter: 'key=eq.budget' },
+            () => loadRules())
           .subscribe();
       }
 
@@ -124,6 +131,7 @@
         target.set(r.key, { category: r.category, source: r.source, evidence: r.evidence });
       }
       budgets = budgetRow?.data?.data?.budgets || {};
+      lastRefresh = Date.now();
 
       const budgeted = Object.values(budgets).filter(v => v != null).length;
       status.textContent = `${rules.merchant.size} merchant rules, ${rules.akahuCategory.size} establishment types known.`
@@ -423,6 +431,28 @@
     }
     fetchAkahuTransactions(appId, userToken);
   });
+
+  // ── Keeping up with vault edits ─────────────────────────────────
+  // Realtime alone isn't enough here: `merchant_rules` isn't in this project's
+  // supabase_realtime publication, and `app_state` only publishes INSERTs (its
+  // replica identity can't carry UPDATEs), so a budget edit — which rewrites an
+  // existing row — never reaches an open page as a push. Both are one-line DDL
+  // fixes, noted in CLAUDE.md, but the page shouldn't depend on them: re-reading
+  // when the tab regains focus also covers a phone waking up or a dropped
+  // socket, which push updates wouldn't survive anyway.
+  const REFRESH_MS = 30000;
+  let lastRefresh = Date.now();
+
+  function refreshIfStale(force) {
+    if (document.hidden) return;
+    if (!force && Date.now() - lastRefresh < REFRESH_MS) return;
+    lastRefresh = Date.now();
+    loadRules();
+  }
+
+  document.addEventListener('visibilitychange', () => refreshIfStale(true));
+  window.addEventListener('focus', () => refreshIfStale(true));
+  setInterval(() => refreshIfStale(false), 10000);
 
   // ── Boot ────────────────────────────────────────────────────────
   render();

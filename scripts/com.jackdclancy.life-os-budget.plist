@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekly budget watcher — runs scripts/sync-budget.mjs whenever the budget note
+  changes, so editing it in Obsidian moves the dashboard's bars within seconds
+  instead of waiting for the 15-minute bridge run. The bridge still runs it on
+  its normal schedule; this is just the fast path.
+
+  Both the file and its parent directory are watched on purpose: launchd's
+  kqueue watch follows an inode, so an editor that saves by replacing the file
+  rather than writing in place would silently orphan a file-only watch. The
+  directory watch survives that. Re-running the sync is idempotent, so the
+  occasional extra trigger costs nothing.
+
+  Install (one-time, from the repo root):
+    cp scripts/com.jackdclancy.life-os-budget.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.jackdclancy.life-os-budget.plist
+  Logs: ~/Library/Logs/life-os-budget.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jackdclancy.life-os-budget</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/JackDillonClancy/dashboard/scripts/sync-budget.mjs</string>
+  </array>
+  <key>WatchPaths</key>
+  <array>
+    <string>/Users/JackDillonClancy/JC AI Brain/10-finances/weekly-budget.md</string>
+    <string>/Users/JackDillonClancy/JC AI Brain/10-finances</string>
+  </array>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/JackDillonClancy/Library/Logs/life-os-budget.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/JackDillonClancy/Library/Logs/life-os-budget.log</string>
+</dict>
+</plist>

@@ -75,7 +75,12 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   `Other` as `_set this_`) syncs as `null`, and the page renders that category without a target
   rather than inventing one. Kept separate from `sync-finances.mjs` deliberately: that script
   exits early when Akahu credentials or the `merchant_rules` table are missing, which would
-  silently take the budget sync down with it.
+  silently take the budget sync down with it. A **`WatchPaths` launch agent**
+  (`scripts/com.jackdclancy.life-os-budget.plist`, installed alongside the 15-min bridge agent)
+  re-runs it within seconds of the note changing, so an Obsidian edit doesn't wait for the next
+  bridge tick. It watches both the note and its parent directory on purpose — launchd's kqueue
+  watch follows an inode, so an editor that saves by replacing the file rather than writing in
+  place would silently orphan a file-only watch.
 - `snapshot-fitness.mjs` / `snapshot-finances.mjs` — one-way app → vault markdown snapshots
   (Hevy → `07-body/7.2-gym/log/`, Akahu → `10-finances/data/`). Skip silently until
   `HEVY_API_KEY` / `AKAHU_APP_ID` + `AKAHU_USER_TOKEN` are added to `.env`.
@@ -197,7 +202,18 @@ DB details: `goals` and `todos` both have `updated_at` + `set_updated_at()` trig
 `supabase/migrations/`) is keyed `(kind, key)` where kind is `merchant` or `akahu_category`, with a
 `source` column (`manual` | `rule` | `akahu` | `ai`) — `sync-finances.mjs` never overwrites a row
 whose source is `manual`, which is what protects Jack's own corrections. RLS is enabled but
-policies are fully public — the anon key can read/write; tightening is a known follow-up. The app pages subscribe to Supabase Realtime, so
+policies are fully public — the anon key can read/write; tightening is a known follow-up.
+
+**Realtime is narrower than it looks** (measured 2026-08-18 by subscribing and writing): `todos`
+and `app_state` are in the `supabase_realtime` publication, but `app_state` delivers **INSERTs
+only** — it has no primary key, so Postgres can't identify which row an UPDATE touched and drops
+those from the WAL stream. Since every bridge write to `app_state` is an upsert over an existing
+key, **none of the tile updates arrive as pushes**; open pages only refresh on reload. Don't
+assume a `.on('postgres_changes', …)` subscription is working because the UI appears to update —
+an optimistic local re-render looks identical. `merchant_rules` isn't in the publication at all.
+`supabase/migrations/20260818010000_realtime_finances.sql` fixes both and is optional;
+`finances.js` refreshes on tab focus and a 30s timer regardless, which also covers a phone waking
+or a dropped socket. The app pages subscribe to Supabase Realtime, so
 bridge writes appear in the open app without reloads.
 
 ## Finance categorisation (reworked 2026-08-18)
