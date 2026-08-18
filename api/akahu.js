@@ -33,14 +33,29 @@ export default async function handler(req, res) {
       return res.status(200).json({ transactions: [], message: 'No accounts found. Check your token and try again.' });
     }
 
-    const txRes = await fetch('https://api.akahu.io/v1/transactions', { headers });
-    if (!txRes.ok) {
-      const body = await txRes.text();
-      return res.status(txRes.status).json({ error: `Failed to fetch transactions: ${txRes.status} ${body}` });
-    }
-    const txData = await txRes.json();
+    // Akahu returns 100 transactions per page — only ~4 weeks of spending,
+    // which silently truncated the page's "Monthly" view. Follow the cursor,
+    // bounded so a long history can't hang the request.
+    const MAX_PAGES = 5;
+    const transactions = [];
+    let cursor;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const url = new URL('https://api.akahu.io/v1/transactions');
+      if (cursor) url.searchParams.set('cursor', cursor);
 
-    return res.status(200).json({ transactions: txData.items || [] });
+      const txRes = await fetch(url, { headers });
+      if (!txRes.ok) {
+        const body = await txRes.text();
+        return res.status(txRes.status).json({ error: `Failed to fetch transactions: ${txRes.status} ${body}` });
+      }
+      const txData = await txRes.json();
+      transactions.push(...(txData.items || []));
+
+      cursor = txData.cursor?.next;
+      if (!cursor) break;
+    }
+
+    return res.status(200).json({ transactions });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
