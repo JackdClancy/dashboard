@@ -117,6 +117,7 @@ Category guidance:
 
 Rules:
 - "name" values are bank statement strings, which are often abbreviated or truncated. Identify the real business where you can.
+- "repeated_charge" means the exact same amount has been charged that many times. Read it as a subscription ONLY when the merchant plausibly bills for a service — software, cloud, streaming, telecom, a gym or membership. In that case it outweighs what the merchant's name suggests it sells: "Apple" at $4.99 x7 is an iCloud storage subscription, not an electronics purchase. On its own it proves nothing — a regular order at the same cafe, bar or takeaway repeats identically too, and those stay Food or Alcohol. Never classify a food or drink venue as Subscriptions on the strength of this signal.
 - If the entry looks like a person's name, a bank transfer, or is too ambiguous to identify, return null for the category. Do NOT guess.
 - Return null rather than a low-confidence guess. An unknown is handled; a wrong answer silently corrupts Jack's spending totals.
 - "why" must be a short factual phrase identifying the business (e.g. "Irish pub in Christchurch", "NZ supermarket chain"), max 60 characters.
@@ -174,6 +175,13 @@ function extractJsonArray(out) {
   throw new Error(`no JSON array in claude output: ${out.slice(0, 200)}`);
 }
 
+// "$4.99 x7" when the same exact amount has been charged 3+ times, else null.
+// An identical repeating amount is the clearest subscription tell available.
+function repeatedCharge(m) {
+  const top = [...m.amounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top && top[1] >= 3 ? `$${top[0]} x${top[1]}` : null;
+}
+
 // Strictly validate model output — it decides where Jack's money is counted.
 function validated(rows, expected) {
   const byName = new Map(expected.map(e => [e.name, e]));
@@ -225,11 +233,17 @@ for (const t of transactions) {
   if (!key) continue;
   if (!merchants.has(key)) {
     merchants.set(key, {
-      key, label, akahuCategory: t.category?.name || null, type: t.type, count: 0, total: 0,
+      key, label, akahuCategory: t.category?.name || null, type: t.type,
+      count: 0, total: 0, amounts: new Map(),
     });
   }
   const m = merchants.get(key);
   m.count++; m.total += -t.amount;
+  // Track repeated identical charges — the strongest available signal that
+  // something is a subscription. Without it the model sees only a name, and
+  // "Apple" reads as an electronics shop rather than a $4.99/mo iCloud bill.
+  const amt = (-t.amount).toFixed(2);
+  m.amounts.set(amt, (m.amounts.get(amt) || 0) + 1);
   if (!m.akahuCategory && t.category?.name) m.akahuCategory = t.category.name;
   if (t.category?.name) akahuCats.set(t.category.name, (akahuCats.get(t.category.name) || 0) + 1);
 }
@@ -305,6 +319,7 @@ if (unresolved.length && !CLAUDE_BIN) {
     akahu_category: m.akahuCategory || undefined,
     transaction_type: m.type,
     times_seen: m.count,
+    repeated_charge: repeatedCharge(m) || undefined,
   }));
 
   let resolved = [];

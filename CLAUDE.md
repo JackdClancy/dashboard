@@ -53,7 +53,11 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   (`transaction.category.name`, e.g. "Bars, pubs, nightclubs") mapped to Jack's buckets → headless
   `claude -p` (`FINANCE_TRIAGE_MODEL`, default haiku) identifying the business by name, with an
   optional second pass allowed WebSearch (`FINANCE_WEB_LOOKUP=0` to disable, `FINANCE_MAX_WEB`
-  cap) for local businesses the model doesn't know cold. **A merchant the model can't identify is
+  cap) for local businesses the model doesn't know cold. The classifier is also given a
+  `repeated_charge` signal (the same exact amount charged 3+ times), because a merchant name alone
+  reads "Apple" as an electronics shop rather than a $4.99/mo iCloud bill — but the prompt is
+  explicit that it only implies a subscription for merchants that bill for a service, since a
+  habitual pint or coffee repeats identically too (`Bailie's Bar $10.50 x16`). **A merchant the model can't identify is
   deliberately left unwritten**, so it surfaces in the app's "Unreviewed" bucket rather than being
   silently filed as `Other` — a confidently-wrong bucket corrupts the spending totals, an unknown
   doesn't. Because the job runs every 15 min, failed identifications are recorded in
