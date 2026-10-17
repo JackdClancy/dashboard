@@ -19,35 +19,13 @@
 
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { rest, requireSupabase, VAULT_DIR, localDate, writeIfUnchanged } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const GOALS_DIR = process.env.VAULT_GOALS_DIR || join(homedir(), 'JC AI Brain', '04-goals');
+const GOALS_DIR = process.env.VAULT_GOALS_DIR || join(VAULT_DIR, '04-goals');
 const STATE_PATH = join(dirname(fileURLToPath(import.meta.url)), '.sync-state-goals.json');
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
-
-async function rest(method, path, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: method === 'POST' ? 'return=representation' : 'return=minimal',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
-}
+requireSupabase();
 
 // ── Parsing / serialising vault files ─────────────────────────────
 
@@ -86,7 +64,7 @@ function parseGoalFile(path) {
     row: {
       title,
       type: fm.type,
-      created: fm.created || new Date().toISOString().slice(0, 10),
+      created: fm.created || localDate(),
       due: fm.due || null,
       steps_done: stepsDone,
       steps_next: stepsNext,
@@ -130,14 +108,17 @@ function updateFileFromRow(file, row) {
   text = text.replace(/^# .+$/m, `# ${row.title}`);
   text = replaceSection(text, 'Done', (row.steps_done || []).map(s => `- [x] ${s}`));
   text = replaceSection(text, 'Next', (row.steps_next || []).map(s => `- [ ] ${s}`));
-  writeFileSync(file.path, text);
+  writeIfUnchanged(file.path, text, file.mtime);
 }
 
+// Only touches the frontmatter block — a `status:` line in the note body
+// (e.g. a quoted status update) must not be rewritten.
 function markFileArchived(file) {
-  const text = file.raw.match(/^---\n[\s\S]*?\nstatus:.*$/m)
-    ? file.raw.replace(/^status:.*$/m, 'status: archived')
-    : file.raw.replace(/^---\n/, '---\nstatus: archived\n');
-  writeFileSync(file.path, text);
+  const text = file.raw.replace(/^---\n([\s\S]*?)\n---/, (m, fm) =>
+    /^status:/m.test(fm)
+      ? `---\n${fm.replace(/^status:.*$/m, 'status: archived')}\n---`
+      : `---\nstatus: archived\n${fm}\n---`);
+  writeIfUnchanged(file.path, text, file.mtime);
 }
 
 function exportRow(row) {
@@ -187,7 +168,10 @@ let pushed = 0, pulled = 0, inserted = 0, exported = 0, deletedRows = 0,
 for (const file of files) {
   if (file.id || file.status === 'archived') continue;
   const [row] = await rest('POST', 'goals', file.row);
-  writeFileSync(file.path, file.raw.replace(/^---\n/, `---\nid: ${row.id}\n`));
+  // Re-read rather than reuse file.raw: the row exists now, so the id must be
+  // recorded (an unstamped file is inserted again next run), and stamping a
+  // stale copy would clobber an edit saved in Obsidian since we read it.
+  writeFileSync(file.path, readFileSync(file.path, 'utf8').replace(/^---\n/, `---\nid: ${row.id}\n`));
   nextShadow[row.id] = rowKey(file.row);
   inserted++;
   console.log(`+ inserted "${file.row.title}" (${row.id})`);

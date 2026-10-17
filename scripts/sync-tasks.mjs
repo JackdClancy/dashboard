@@ -14,35 +14,13 @@
 
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { rest, requireSupabase, VAULT_DIR, writeIfUnchanged, stampLines } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const TASKS_FILE = process.env.VAULT_TASKS_FILE || join(homedir(), 'JC AI Brain', '02-tasks', 'tasks.md');
+const TASKS_FILE = process.env.VAULT_TASKS_FILE || join(VAULT_DIR, '02-tasks', 'tasks.md');
 const STATE_PATH = join(dirname(fileURLToPath(import.meta.url)), '.sync-state-tasks.json');
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
-
-async function rest(method, path, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: method === 'POST' ? 'return=representation' : 'return=minimal',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
-}
+requireSupabase();
 
 const rowKey = r => JSON.stringify([r.title, !!r.completed, r.due_date || null]);
 const itemLine = (r) =>
@@ -66,7 +44,10 @@ function parseItemLine(line) {
 // ── Load both sides + shadow ──────────────────────────────────────
 
 const raw = readFileSync(TASKS_FILE, 'utf8');
-const mtime = statSync(TASKS_FILE).mtimeMs;
+// editedAt: when Jack last saved the file (for last-write-wins).
+// mtime: what's on disk now (for the don't-clobber-a-concurrent-edit guard).
+const editedAt = statSync(TASKS_FILE).mtimeMs;
+let mtime = editedAt;
 const lines = raw.split('\n');
 // Skip frontmatter so nothing in it can ever parse as a task.
 let bodyStart = 0;
@@ -94,14 +75,29 @@ const appendLines = [];
 let fileDirty = false;
 
 // New tasks: lines without an id.
-for (const item of items) {
-  if (item.id) continue;
-  const [row] = await rest('POST', 'todos', item.row);
-  lines[item.lineIdx] = itemLine(row);
-  nextShadow[row.id] = rowKey(row);
-  fileDirty = true;
-  inserted++;
-  console.log(`+ inserted "${row.title}" (${row.id})`);
+const stamps = [];
+try {
+  for (const item of items) {
+    if (item.id) continue;
+    const [row] = await rest('POST', 'todos', item.row);
+    stamps.push({ from: lines[item.lineIdx], to: itemLine(row) });
+    lines[item.lineIdx] = itemLine(row);
+    nextShadow[row.id] = rowKey(row);
+    inserted++;
+    console.log(`+ inserted "${row.title}" (${row.id})`);
+  }
+} finally {
+  // Stamp the new ids into the file now (even if a later insert failed), not at
+  // the end: otherwise any error before the final write makes the next run
+  // insert these lines again and append the first copies back from the app —
+  // doubling every new task.
+  if (stamps.length) {
+    mtime = stampLines(TASKS_FILE, stamps);
+    writeFileSync(STATE_PATH, JSON.stringify({ ...shadow, ...nextShadow }, null, 2));
+    // If Jack saved the file mid-run, our in-memory copy is now stale: poison
+    // the guard so the end-of-run write is refused rather than clobbering him.
+    if (readFileSync(TASKS_FILE, 'utf8') !== lines.join('\n')) mtime = -1;
+  }
 }
 
 const allIds = new Set([...itemById.keys(), ...dbById.keys(), ...Object.keys(shadow)]);
@@ -118,7 +114,7 @@ for (const id of allIds) {
     if (fileChanged && !dbChanged) winner = 'file';
     else if (dbChanged && !fileChanged) winner = 'db';
     else {
-      winner = mtime > Date.parse(db.updated_at || db.created_at) ? 'file' : 'db';
+      winner = editedAt > Date.parse(db.updated_at || db.created_at) ? 'file' : 'db';
       conflicts++;
       console.log(`! conflict on "${db.title}" → ${winner === 'file' ? 'vault' : 'app'} wins`);
     }
@@ -164,7 +160,7 @@ if (fileDirty) {
     while (out.length && out[out.length - 1].trim() === '') out.pop();
     out.push(...appendLines, '');
   }
-  writeFileSync(TASKS_FILE, out.join('\n'));
+  writeIfUnchanged(TASKS_FILE, out.join('\n'), mtime);
 }
 
 writeFileSync(STATE_PATH, JSON.stringify(nextShadow, null, 2));

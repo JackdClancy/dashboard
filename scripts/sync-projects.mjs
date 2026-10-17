@@ -22,34 +22,11 @@
 
 import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { rest, requireSupabase, VAULT_DIR } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
+const PROJECTS_DIR = process.env.VAULT_PROJECTS_DIR || join(VAULT_DIR, '03-projects');
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const PROJECTS_DIR = process.env.VAULT_PROJECTS_DIR || join(homedir(), 'JC AI Brain', '03-projects');
-
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
-
-async function rest(method, path, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: method === 'POST' ? 'return=representation' : 'return=minimal',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
-}
+requireSupabase();
 
 function parsePointer(path) {
   if (!statSync(path).isFile() || !path.endsWith('.md')) return null;

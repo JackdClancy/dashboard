@@ -12,9 +12,8 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { localDate } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
 
 const APP_ID = process.env.AKAHU_APP_ID;
 const USER_TOKEN = process.env.AKAHU_USER_TOKEN;
@@ -37,7 +36,7 @@ const { transactions = [] } = await res.json();
 
 const byMonth = new Map();
 for (const t of transactions) {
-  const month = (t.date || '').slice(0, 7);
+  const month = t.date ? localDate(t.date).slice(0, 7) : '';
   if (!month) continue;
   if (!byMonth.has(month)) byMonth.set(month, { in: 0, out: 0 });
   const m = byMonth.get(month);
@@ -45,7 +44,7 @@ for (const t of transactions) {
 }
 
 const nzd = n => n.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });
-const today = new Date().toISOString().slice(0, 10);
+const today = localDate();
 const recent = transactions.slice(0, 60);
 
 const lines = [
@@ -75,7 +74,7 @@ const lines = [
   '| Date | Description | Amount |',
   '|---|---|---|',
   ...recent.map(t =>
-    `| ${(t.date || '').slice(0, 10)} | ${(t.description || '—').replace(/\|/g, '/')} | ${nzd(t.amount || 0)} |`),
+    `| ${t.date ? localDate(t.date) : ''} | ${(t.description || '—').replace(/\|/g, '/')} | ${nzd(t.amount || 0)} |`),
   '',
 ];
 

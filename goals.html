@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 
   <script>
     tailwind.config = {
@@ -513,7 +513,9 @@
       const title = document.getElementById(`title-${type}`).value.trim();
       if (!title || !supabaseClient) return;
       const due     = document.getElementById(`due-${type}`).value || null;
-      const created = new Date().toISOString().split('T')[0];
+      // Local date, not toISOString(): in NZ that's still yesterday before midday.
+      const t = new Date();
+      const created = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
       const { error } = await supabaseClient
         .from('goals')
         .insert({ title, type, created, due, steps_done: [], steps_next: [] });

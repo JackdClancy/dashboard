@@ -16,21 +16,13 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { CATEGORIES } from './finance-taxonomy.mjs';
+import { requireSupabase, putAppState, VAULT_DIR } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const VAULT_DIR = process.env.VAULT_DIR || join(homedir(), 'JC AI Brain');
 const BUDGET_PATH = join(VAULT_DIR, '10-finances', 'weekly-budget.md');
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
+requireSupabase();
 if (!existsSync(BUDGET_PATH)) {
   console.log(`sync-budget: ${BUDGET_PATH} not found — skipping.`);
   process.exit(0);
@@ -73,17 +65,7 @@ if (process.env.DRY_RUN) {
   process.exit(0);
 }
 
-const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state`, {
-  method: 'POST',
-  headers: {
-    apikey: ANON_KEY,
-    Authorization: `Bearer ${ANON_KEY}`,
-    'Content-Type': 'application/json',
-    Prefer: 'resolution=merge-duplicates',
-  },
-  body: JSON.stringify({ key: 'budget', data: payload, updated_at: new Date().toISOString() }),
-});
-if (!res.ok) throw new Error(`Upsert app_state → ${res.status}: ${await res.text()}`);
+await putAppState('budget', payload);
 
 const set = found - unset.length;
 console.log(`sync-budget: ${set}/${found} categories budgeted → app_state`

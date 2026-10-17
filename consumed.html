@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 
   <script>
     tailwind.config = {
@@ -251,6 +251,11 @@
     function esc(str) {
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+    // Source links come from vault notes — only plain web links are clickable
+    // (esc() can't stop a `javascript:` URL, which is valid inside an href).
+    function safeUrl(url) {
+      return /^https?:\/\//i.test(String(url || '')) ? url : null;
+    }
 
     // ── Table: read-only mirror of app_state key 'consumed', written by
     //    the bridge (sync-consumed.mjs) from the vault's compiled notes. ──
@@ -316,7 +321,7 @@
             </div>
           </td>
           <td class="px-4 py-3.5">
-            ${i.link
+            ${safeUrl(i.link)
               ? `<a href="${esc(i.link)}" target="_blank" rel="noopener" class="text-sm text-primary-400 hover:text-primary-300 transition-colors leading-snug">${esc(i.source || 'Open link ↗')}</a>`
               : `<span class="text-sm text-white/40 leading-snug">${esc(i.source || '—')}</span>`}
           </td>

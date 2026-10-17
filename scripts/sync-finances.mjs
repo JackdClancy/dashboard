@@ -24,18 +24,14 @@
 //        FINANCE_MAX_WEB (8), FINANCE_MAX_CLASSIFY (60)
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { rest, requireSupabase, CLAUDE_BIN } from './bridge-lib.mjs';
 import {
   CATEGORIES, categoryFromAkahu, categoryFromHouseRule, normaliseKey, merchantLabel,
 } from './finance-taxonomy.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const APP_ID = process.env.AKAHU_APP_ID;
 const USER_TOKEN = process.env.AKAHU_USER_TOKEN;
 const MODEL = process.env.FINANCE_TRIAGE_MODEL || 'haiku';
@@ -47,33 +43,10 @@ const MAX_ATTEMPTS = +(process.env.FINANCE_MAX_ATTEMPTS || 3);
 const RETRY_DAYS = +(process.env.FINANCE_RETRY_DAYS || 7);
 const STATE_PATH = fileURLToPath(new URL('.sync-state-finances.json', import.meta.url));
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
+requireSupabase();
 if (!APP_ID || !USER_TOKEN) {
   console.log('sync-finances: AKAHU_APP_ID / AKAHU_USER_TOKEN not set in .env — skipping.');
   process.exit(0);
-}
-
-const CLAUDE_BIN = process.env.CLAUDE_BIN
-  || [join(homedir(), '.local/bin/claude'), '/usr/local/bin/claude', '/opt/homebrew/bin/claude']
-    .find(existsSync);
-
-async function rest(method, path, body, extraHeaders = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      'Content-Type': 'application/json',
-      ...extraHeaders,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${await res.text()}`);
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
 }
 
 // ── Akahu ─────────────────────────────────────────────────────────
@@ -307,6 +280,10 @@ for (const m of merchants.values()) {
 
 // Tier 4: ask Claude what these places are.
 let aiResolved = 0, stillUnknown = [];
+// Merchants the model actually gave an answer about. Only those count as a
+// failed attempt when still unknown: a CLI outage or unparseable reply says
+// nothing about the merchant, and used to burn its 3 attempts for good.
+const answered = new Set();
 if (unresolved.length && !CLAUDE_BIN) {
   console.log('sync-finances: claude CLI not found — set CLAUDE_BIN in .env. Skipping AI tier.');
   stillUnknown = unresolved;
@@ -325,6 +302,7 @@ if (unresolved.length && !CLAUDE_BIN) {
   let resolved = [];
   try {
     resolved = validated(classify(subjects), subjects);
+    batch.forEach(m => answered.add(m.key));
   } catch (e) {
     console.log(`  ! classification failed: ${e.message.split('\n')[0]} — leaving for next run`);
   }
@@ -347,6 +325,7 @@ if (unresolved.length && !CLAUDE_BIN) {
     }));
     try {
       const webResolved = validated(classify(webSubjects, { web: true }), webSubjects);
+      webBatch.forEach(m => answered.add(m.key));
       const byWebLabel = new Map(webBatch.map(m => [m.label, m]));
       for (const r of webResolved) {
         const m = byWebLabel.get(r.subject.name);
@@ -364,6 +343,7 @@ if (unresolved.length && !CLAUDE_BIN) {
 // Anything we asked about and couldn't identify gets an attempt recorded.
 const now2 = new Date().toISOString();
 for (const m of stillUnknown) {
+  if (!answered.has(m.key)) continue;
   tried[m.key] = { at: now2, attempts: (tried[m.key]?.attempts || 0) + 1, label: m.label };
 }
 // Once a merchant is resolved (by us or by Jack), drop its failure record so a
@@ -376,9 +356,17 @@ if (process.env.DRY_RUN) {
   process.exit(0);
 }
 
+// The AI tier can run for many minutes, and Jack may correct a merchant in the
+// app meanwhile. `have` was read before that, so re-check for manual rules
+// right before writing — the upsert would otherwise overwrite his correction.
 if (upserts.length) {
-  await rest('POST', 'merchant_rules?on_conflict=kind,key', upserts,
-    { Prefer: 'resolution=merge-duplicates' });
+  const manual = new Set((await rest('GET', 'merchant_rules?select=kind,key&source=eq.manual'))
+    .map(r => `${r.kind}|${r.key}`));
+  const safe = upserts.filter(u => !manual.has(`${u.kind}|${u.key}`));
+  if (safe.length) {
+    await rest('POST', 'merchant_rules?on_conflict=kind,key', safe,
+      { Prefer: 'resolution=merge-duplicates' });
+  }
 }
 writeFileSync(STATE_PATH, JSON.stringify({ tried }, null, 2));
 

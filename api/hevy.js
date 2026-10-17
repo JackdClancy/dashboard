@@ -2,6 +2,17 @@
 // Same reasoning as api/akahu.js: third-party APIs that require an API key
 // generally don't allow direct browser-to-browser CORS requests, so this
 // function makes the request server-side and relays the result back.
+//
+// Body: { apiKey, since?, muscleSince? }
+//   since       — ISO date; return every workout from then on (else latest 10)
+//   muscleSince — ISO date; also return `muscleGroups`, the share of sets per
+//                 muscle over workouts from that date. Lets the Gym page get
+//                 its week, month and muscle split from one Hevy pass instead
+//                 of three (this replaced the separate /api/hevy-muscles).
+
+import { fetchWorkouts, muscleSplit, startOf } from './_hevy.js';
+
+export const config = { maxDuration: 30 };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -9,51 +20,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { apiKey, since } = req.body || {};
+  const { apiKey, since, muscleSince } = req.body || {};
   if (!apiKey) {
     return res.status(400).json({ error: 'Missing apiKey' });
   }
 
   try {
-    let rawWorkouts = [];
-
-    if (since) {
-      // Hevy returns newest-first and caps pageSize at 10, so to cover a
-      // full month we page through until we pass the requested date.
-      const sinceTime = new Date(since).getTime();
-      const MAX_PAGES = 10;
-      for (let page = 1; page <= MAX_PAGES; page++) {
-        const r = await fetch(`https://api.hevyapp.com/v1/workouts?page=${page}&pageSize=10`, {
-          headers: { 'api-key': apiKey },
-        });
-        if (r.status === 404) break; // ran out of pages - not an error
-        if (!r.ok) {
-          const body = await r.text();
-          return res.status(r.status).json({ error: `Hevy API error: ${r.status} ${body}` });
-        }
-        const pageData = await r.json();
-        const pageWorkouts = pageData.workouts || [];
-        if (pageWorkouts.length === 0) break;
-        rawWorkouts.push(...pageWorkouts);
-        const oldest = pageWorkouts[pageWorkouts.length - 1];
-        const oldestTime = new Date(oldest.start_time || oldest.created_at).getTime();
-        if (oldestTime < sinceTime) break;
-      }
-      rawWorkouts = rawWorkouts.filter(w => {
-        const t = new Date(w.start_time || w.created_at).getTime();
-        return t >= sinceTime;
-      });
-    } else {
-      const r = await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=10', {
-        headers: { 'api-key': apiKey },
-      });
-      if (!r.ok) {
-        const body = await r.text();
-        return res.status(r.status).json({ error: `Hevy API error: ${r.status} ${body}` });
-      }
-      const data = await r.json();
-      rawWorkouts = data.workouts || [];
-    }
+    // One fetch covers both ranges; with muscleSince alone that still means
+    // paging back far enough (not just the latest 10).
+    const from = since && muscleSince
+      ? (new Date(since) < new Date(muscleSince) ? since : muscleSince)
+      : since || muscleSince;
+    const fetched = await fetchWorkouts(apiKey, from);
+    // `workouts` keeps its old meaning: everything since `since`, else the latest 10.
+    const rawWorkouts = since
+      ? fetched.filter(w => startOf(w) >= new Date(since).getTime())
+      : fetched.slice(0, 10);
 
     // Reduce each workout to just what the client needs, including total
     // volume (kg) computed from every set's weight_kg * reps.
@@ -75,8 +57,13 @@ export default async function handler(req, res) {
       };
     });
 
-    return res.status(200).json({ workouts });
+    const body = { workouts };
+    if (muscleSince) {
+      const muscleFrom = new Date(muscleSince).getTime();
+      body.muscleGroups = await muscleSplit(apiKey, fetched.filter(w => startOf(w) >= muscleFrom));
+    }
+    return res.status(200).json(body);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return res.status(e.status || 500).json({ error: e.message });
   }
 }

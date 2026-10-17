@@ -24,19 +24,12 @@
 //        "Personal"), MAIL_LOOKBACK_DAYS (7), MAIL_MAX_TRIAGE_PER_RUN (40),
 //        MAIL_TRIAGE_MODEL (haiku), CLAUDE_BIN (path to claude CLI)
 
-import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { readUpcomingEvents, addEvent, findDuplicate } from './calendar-lib.mjs';
+import { rest, requireSupabase, putAppState, CLAUDE_BIN, todayLine } from './bridge-lib.mjs';
+import { readUpcomingEvents, addEvent, findDuplicate, appendLedgerEntry } from './calendar-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const VAULT_DIR = process.env.VAULT_DIR || join(homedir(), 'JC AI Brain');
-const EVENTS_PATH = join(VAULT_DIR, '09-calendar', '(AI) bridge-events.json');
 const CALENDAR_NAME = process.env.CALENDAR_NAME || 'Personal';
 const LOOKBACK_DAYS = +(process.env.MAIL_LOOKBACK_DAYS || 7);
 const MAX_TRIAGE = +(process.env.MAIL_MAX_TRIAGE_PER_RUN || 40);
@@ -44,30 +37,7 @@ const MODEL = process.env.MAIL_TRIAGE_MODEL || 'haiku';
 const STATE_PATH = fileURLToPath(new URL('.sync-state-mail.json', import.meta.url));
 const MAX_TILE_ITEMS = 15;
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
-
-const CLAUDE_BIN = process.env.CLAUDE_BIN
-  || [join(homedir(), '.local/bin/claude'), '/usr/local/bin/claude', '/opt/homebrew/bin/claude']
-    .find(existsSync);
-
-async function rest(method, path, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      'Content-Type': 'application/json',
-      ...(method === 'POST' && path === 'app_state' ? { Prefer: 'resolution=merge-duplicates' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${await res.text()}`);
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+requireSupabase();
 
 // ── Read the unified inbox (JXA) ──────────────────────────────────
 // Metadata is fetched in bulk (one Apple Event per property); bodies only
@@ -113,8 +83,7 @@ function readInbox(seenIds) {
 // ── Claude triage (headless, one call per run) ────────────────────
 
 function triage(emails) {
-  const today = new Date();
-  const prompt = `You are an email triage assistant for Jack. Today is ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString('en-NZ', { weekday: 'long' })}), timezone Pacific/Auckland.
+  const prompt = `You are an email triage assistant for Jack. ${todayLine()}
 
 Classify each email below. For each, return:
 - "important": true ONLY for mail from a real person or a company that Jack personally needs to read, reply to, or act on (personal messages, work/university correspondence, invoices or bills requiring action, appointment confirmations needing a response). NOT important: newsletters, mailing lists, promotions, marketing, automated notifications, order/shipping updates, receipts, login codes, social media notifications, no-reply broadcasts.
@@ -158,12 +127,10 @@ async function runActions(actions, email, existingEvents) {
           continue;
         }
         const { uid } = addEvent({ calendarName: CALENDAR_NAME, title, date: a.date, time });
-        // Ledger so the dashboard shows it immediately (ahead of the next ICS re-export).
-        mkdirSync(join(VAULT_DIR, '09-calendar'), { recursive: true });
-        const ledger = existsSync(EVENTS_PATH) ? JSON.parse(readFileSync(EVENTS_PATH, 'utf8')) : [];
-        ledger.push({ uid, title, date: a.date, time, captured: `email: ${email.subject}`, created_at: new Date().toISOString() });
-        writeFileSync(EVENTS_PATH, JSON.stringify(ledger, null, 2));
         existingEvents.push({ uid, title, date: a.date, time, allDay: !time });
+        // Ledger so the dashboard shows it immediately (ahead of the iCloud feed).
+        try { appendLedgerEntry({ uid, title, date: a.date, time, captured: `email: ${email.subject}` }); }
+        catch (e) { console.log(`  ! ledger not updated: ${e.message.split('\n')[0]}`); }
         done.push(`📅 "${title}" ${a.date}${time ? ' ' + time : ''}`);
       } else if (a.type === 'todo') {
         await rest('POST', 'todos', {
@@ -247,10 +214,6 @@ const items = [...new Map(inbox.map(m => [m.id, m])).values()]
     return { sender: s.name, email: s.email, subject: m.subject, received: m.received };
   });
 
-await rest('POST', 'app_state', {
-  key: 'mail',
-  data: { fetched_at: new Date().toISOString(), items },
-  updated_at: new Date().toISOString(),
-});
+await putAppState('mail', { fetched_at: new Date().toISOString(), items });
 
 console.log(`sync-mail: ${inbox.length} in window, ${toTriage.length} triaged, ${items.length} on the tile`);
