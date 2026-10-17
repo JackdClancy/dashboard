@@ -139,11 +139,35 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   `app-quick-add`). **Video enrichment (added 2026-07-14):**
   captures containing a TikTok / Instagram reel / YouTube Shorts URL get a
   `## Video content (auto-extracted)` block appended — uploader, caption, and a transcript of the
-  video's speech via `scripts/fetch-video.mjs` (yt-dlp + ffmpeg + local whisper-cli; model at
-  `scripts/.whisper/ggml-base.en.bin`, gitignored; all local, nothing uploaded). Extraction
-  failure never blocks the capture — the file gets a retry-command note instead. Optional
-  `YTDLP_COOKIES_BROWSER=safari|chrome` in `.env` if Instagram starts login-walling anonymous
-  access.
+  video's speech via `scripts/fetch-video.mjs` (yt-dlp + ffmpeg + local whisper-cli; all
+  local, nothing uploaded). Extraction failure never blocks the capture — the file gets a
+  retry-command note instead. **Reworked 2026-10-17** after a compile pass lost one reel
+  completely and left others half-captured:
+  - The video is downloaded once (several yt-dlp format selectors are tried in turn) and ffmpeg
+    pulls both the audio and the frames from that local file. Before this, audio came from a
+    single `yt-dlp -x --audio-format wav` path that failed outright on some TikTok formats.
+  - **On-screen text:** a frame every ~2s goes through macOS Vision OCR
+    (`scripts/ocr-frames.swift`, compiled on first use into `scripts/.bin/`), and lines the
+    transcript already contains are filtered out, as are word-by-word subtitle build-ups. Reels
+    carry list items, titles, handles and repo names as overlays that speech never says.
+  - Whisper model: `ggml-small.en.bin` if present, else `ggml-base.en.bin`
+    (`scripts/.whisper/`, gitignored). It's given the caption as `--prompt` so names are
+    spelled the creator's way. small.en takes roughly 2–3 min per 2-min reel on this Intel Mac.
+  - **yt-dlp is yt-dlp's own standalone build** in `scripts/.bin/yt-dlp-dist/` (gitignored),
+    not Homebrew's: `brew upgrade yt-dlp` on this Intel Mac running macOS 14 compiles OpenSSL
+    and Python from source. Use the zip ("onedir") build, not the single-file one: the
+    single-file build unpacks to a fresh temp dir on every launch, and macOS re-scans it each
+    time (~30s per call, measured). `bridge-sync.sh` runs `-U` weekly.
+  - **Instagram login:** `node scripts/export-video-cookies.mjs` copies only the
+    instagram.com/tiktok.com cookies from signed-in Chrome into `scripts/.ytdlp-cookies.txt`
+    (gitignored, mode 600). It uses a file rather than `--cookies-from-browser` because
+    reading Chrome live needs a keychain prompt on every background run. Re-run it if reels
+    start failing with "login required". `YTDLP_COOKIES_BROWSER` still works as a fallback.
+  - **Retries:** a partial failure after metadata doesn't throw. The file gets an
+    `_Extraction incomplete:` marker next to whatever was recovered, and
+    `retry-video-captures.mjs` (run by the bridge right after this script) re-extracts marked
+    inbox files, up to 3 attempts 2h apart, at most 2 per run. Backoff state lives in
+    `scripts/.sync-state-video-retries.json`.
 
 ### Capture entry points (share-to-inbox)
 

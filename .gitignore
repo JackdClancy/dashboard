@@ -13,6 +13,12 @@ scripts/.sync-state-*.json
 # Local whisper model for scripts/fetch-video.mjs (~148MB, re-downloadable)
 scripts/.whisper/
 
+# Standalone yt-dlp + compiled OCR helper for fetch-video.mjs (re-creatable)
+scripts/.bin/
+
+# Instagram/TikTok login cookies for yt-dlp (scripts/export-video-cookies.mjs) — secret
+scripts/.ytdlp-cookies.txt
+
 # iOS Scriptable scripts live on the phone; hardcode the anon key, keep out of the public repo
 scriptable/
 
