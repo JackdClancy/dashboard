@@ -31,8 +31,8 @@
 //   time lands after the old end time.
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 
 // A function, not a frozen constant: callers may load .env (process.loadEnvFile)
@@ -154,13 +154,56 @@ export function parseIcsEvents(ics, windowStart, windowEnd) {
   return events;
 }
 
+// ── Bridge-events ledger writes ──────────────────────────────────
+// The vault-side cache that makes a bridge-created event show on the Upcoming
+// tile immediately, ahead of the (lagging) iCloud feed. sync-captures.mjs and
+// sync-mail.mjs both write it; readUpcomingEvents() below reads it.
+export function ledgerPath() {
+  return join(process.env.VAULT_DIR || join(homedir(), 'JC AI Brain'), '09-calendar', '(AI) bridge-events.json');
+}
+function loadLedger() {
+  const path = ledgerPath();
+  if (!existsSync(path)) return [];
+  try { return JSON.parse(readFileSync(path, 'utf8')); }
+  catch (e) { throw new Error(`bridge-events ledger is not valid JSON (${path}): ${e.message}`); }
+}
+function saveLedger(ledger) {
+  const path = ledgerPath();
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(ledger, null, 2));
+}
+export function appendLedgerEntry(entry) {
+  const ledger = loadLedger();
+  ledger.push({ ...entry, created_at: new Date().toISOString() });
+  saveLedger(ledger);
+}
+// Matches by uid OR by the pre-update title+date — many ledger entries have
+// no uid (they predate uid-tracking, or came from sync-mail.mjs), so uid alone
+// misses them and the tile keeps showing stale data.
+const ledgerMatch = ({ uid, matchTitle, matchDate }) => e =>
+  (uid && e.uid === uid) || (e.title === matchTitle && e.date === matchDate);
+export function updateLedgerEntry({ uid, matchTitle, matchDate, changes }) {
+  const ledger = loadLedger();
+  const idx = ledger.findIndex(ledgerMatch({ uid, matchTitle, matchDate }));
+  if (idx === -1) return; // event predates the ledger (manual/ICS-only)
+  for (const k of ['title', 'date', 'time']) {
+    if (changes[k] !== undefined) ledger[idx][k] = changes[k];
+  }
+  saveLedger(ledger);
+}
+export function removeLedgerEntry({ uid, matchTitle, matchDate }) {
+  const ledger = loadLedger();
+  const isMatch = ledgerMatch({ uid, matchTitle, matchDate });
+  const next = ledger.filter(e => !isMatch(e));
+  if (next.length !== ledger.length) saveLedger(next);
+}
+
 // Fetch/read the configured ICS source + merge in the bridge-events ledger
 // (dedupe by date+title, same as sync-calendar.mjs), pruning stale ledger
 // entries as a side effect. → sorted [{ date, time, title, uid }].
 export async function readUpcomingEvents({ horizonDays = 30 } = {}) {
   const icsSource = process.env.CALENDAR_ICS || join(homedir(), 'Downloads', 'Personal.ics');
-  const vaultDir = process.env.VAULT_DIR || join(homedir(), 'JC AI Brain');
-  const ledgerPath = join(vaultDir, '09-calendar', '(AI) bridge-events.json');
+  const ledgerFile = ledgerPath();
 
   let ics = '';
   if (/^(https?|webcal):/.test(icsSource)) {
@@ -178,7 +221,7 @@ export async function readUpcomingEvents({ horizonDays = 30 } = {}) {
   const events = ics ? parseIcsEvents(ics, windowStart, windowEnd) : [];
 
   try {
-    const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
+    const ledger = JSON.parse(readFileSync(ledgerFile, 'utf8'));
     // Local date strings, not toISOString() — for timezones ahead of UTC
     // (e.g. NZ, UTC+12), converting local midnight to ISO/UTC rolls the date
     // back a day, so this cutoff would silently accept yesterday's events
@@ -193,7 +236,7 @@ export async function readUpcomingEvents({ horizonDays = 30 } = {}) {
         events.push({ date: ev.date, time: ev.time, title: ev.title, uid: ev.uid || null });
       }
     }
-    if (kept.length !== ledger.length) writeFileSync(ledgerPath, JSON.stringify(kept, null, 2));
+    if (kept.length !== ledger.length) writeFileSync(ledgerFile, JSON.stringify(kept, null, 2));
   } catch { /* no ledger yet */ }
 
   return events.sort((a, b) => (a.date + (a.time || '')) < (b.date + (b.time || '')) ? -1 : 1);

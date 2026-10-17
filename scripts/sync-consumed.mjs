@@ -16,20 +16,13 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { requireSupabase, putAppState, localDate, VAULT_DIR } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const VAULT = process.env.VAULT || join(homedir(), 'JC AI Brain');
+const VAULT = process.env.VAULT || VAULT_DIR; // VAULT kept as a legacy override
 const MAX_ITEMS = 50; // full list for consumed.html; the home tile shows the first 8
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
+requireSupabase();
 
 const SOURCES = [
   { dir: join(VAULT, '08-knowledge'), kind: 'knowledge' },
@@ -126,7 +119,7 @@ function parseFile(path, kind, opts = {}) {
     source,
     essence: extractEssence(body),
     path: relPath,
-    date: new Date(when).toISOString().slice(0, 10),
+    date: localDate(new Date(when)),
     _sort: when,
   }];
 }
@@ -187,20 +180,6 @@ if (process.env.DRY_RUN) {
   process.exit(0);
 }
 
-const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state`, {
-  method: 'POST',
-  headers: {
-    apikey: ANON_KEY,
-    Authorization: `Bearer ${ANON_KEY}`,
-    'Content-Type': 'application/json',
-    Prefer: 'resolution=merge-duplicates',
-  },
-  body: JSON.stringify({
-    key: 'consumed',
-    data: { fetched_at: new Date().toISOString(), items: payload },
-    updated_at: new Date().toISOString(),
-  }),
-});
-if (!res.ok) throw new Error(`Upsert app_state → ${res.status}: ${await res.text()}`);
+await putAppState('consumed', { fetched_at: new Date().toISOString(), items: payload });
 
 console.log(`sync-consumed: ${payload.length} of ${items.length} items → app_state`);

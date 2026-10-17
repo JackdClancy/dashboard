@@ -427,69 +427,89 @@
       el.innerHTML = WEEK_LABELS.map((label, i) => dayCell(label, weekDates[i], placeholderContent(text))).join('');
     }
 
-    async function loadHevyWorkouts(){
+    // One Hevy pass feeds the whole page: the week row, the month calendar and
+    // the muscle split all come from the same workouts (this used to be three
+    // requests, two of which paged through the same month). Ranges are sent as
+    // exact local-midnight timestamps — a bare "2026-10-01" reads as UTC
+    // midnight on the server, which is 1pm in NZ, so a morning workout on the
+    // 1st used to drop out of the month.
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const rangeStart = monday < firstOfMonth ? monday : firstOfMonth;
+
+    async function loadHevy(){
       const key = loadHevyKey();
+      const calEl = document.getElementById('monthlyCal');
+      const muscleEl = document.getElementById('muscleChart');
       if(!key){
         renderActualPlaceholder('Connect Hevy');
+        calEl.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Connect Hevy to see this.</p>';
+        muscleEl.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Connect Hevy to see this.</p>';
         return;
       }
       renderActualPlaceholder('Loading…');
+      calEl.innerHTML = muscleEl.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Loading…</p>';
 
       try {
         const res = await fetch('/api/hevy', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ apiKey: key })
+          body: JSON.stringify({ apiKey: key, since: rangeStart.toISOString(), muscleSince: firstOfMonth.toISOString() })
         });
         const data = await res.json();
         if(!res.ok) throw new Error(data.error || ('Request failed: '+res.status));
-
-        const workouts = data.workouts || [];
-        const byDate = {};
-        workouts.forEach(w => {
-          const raw = w.start_time || w.created_at;
-          if(!raw) return;
-          const dateKey = isoDate(new Date(raw));
-          if(!byDate[dateKey]) byDate[dateKey] = [];
-          byDate[dateKey].push({ title: w.title || 'Workout', volume: w.volume_kg || 0 });
-        });
-        const completedDates = new Set(Object.keys(byDate));
-
-        const el = document.getElementById('actualRow');
-        el.innerHTML = WEEK_LABELS.map((label, i) => {
-          const d = weekDates[i];
-          const entries = byDate[isoDate(d)] || [];
-          const status = dayStatus(label, d, completedDates);
-          return dayCell(label, d, workoutsContent(entries), status);
-        }).join('');
-
-        applyPlannedGlow(completedDates);
-
-        // Weekly consistency: judged days = today/past days with a plan.
-        let greenCount = 0, redCount = 0;
-        WEEK_LABELS.forEach((label, i) => {
-          const status = dayStatus(label, weekDates[i], completedDates);
-          if(status === 'green') greenCount++;
-          else if(status === 'red') redCount++;
-        });
-        stats.weeklyPct = (greenCount + redCount) > 0 ? (greenCount / (greenCount + redCount)) * 100 : null;
-
-        // Time in the gym this week, from workouts whose date falls Mon-Sun.
-        const weekIsoSet = new Set(weekDates.map(isoDate));
-        let weeklyMinutes = 0;
-        workouts.forEach(w => {
-          if(!w.start_time || !w.end_time) return;
-          if(!weekIsoSet.has(isoDate(new Date(w.start_time)))) return;
-          const mins = (new Date(w.end_time) - new Date(w.start_time)) / 60000;
-          if(mins > 0) weeklyMinutes += mins;
-        });
-        stats.weeklyMinutes = weeklyMinutes;
-
-        renderStatsPanel();
+        renderWeek(data.workouts || []);
+        renderMonthlyCalendar(new Set((data.workouts || [])
+          .map(w => w.start_time || w.created_at).filter(Boolean).map(raw => isoDate(new Date(raw)))));
+        renderMuscleChart(data.muscleGroups);
       } catch(e){
-        const el = document.getElementById('actualRow');
-        el.innerHTML = `<div class="col-span-7 p-4 text-center text-xs text-red-400">Error: ${esc(e.message)}</div>`;
+        const msg = esc(e.message);
+        document.getElementById('actualRow').innerHTML = `<div class="col-span-7 p-4 text-center text-xs text-red-400">Error: ${msg}</div>`;
+        calEl.innerHTML = muscleEl.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Error: ${msg}</p>`;
       }
+    }
+
+    function renderWeek(workouts){
+      const byDate = {};
+      workouts.forEach(w => {
+        const raw = w.start_time || w.created_at;
+        if(!raw) return;
+        const dateKey = isoDate(new Date(raw));
+        if(!byDate[dateKey]) byDate[dateKey] = [];
+        byDate[dateKey].push({ title: w.title || 'Workout', volume: w.volume_kg || 0 });
+      });
+      const completedDates = new Set(Object.keys(byDate));
+
+      const el = document.getElementById('actualRow');
+      el.innerHTML = WEEK_LABELS.map((label, i) => {
+        const d = weekDates[i];
+        const entries = byDate[isoDate(d)] || [];
+        const status = dayStatus(label, d, completedDates);
+        return dayCell(label, d, workoutsContent(entries), status);
+      }).join('');
+
+      applyPlannedGlow(completedDates);
+
+      // Weekly consistency: judged days = today/past days with a plan.
+      let greenCount = 0, redCount = 0;
+      WEEK_LABELS.forEach((label, i) => {
+        const status = dayStatus(label, weekDates[i], completedDates);
+        if(status === 'green') greenCount++;
+        else if(status === 'red') redCount++;
+      });
+      stats.weeklyPct = (greenCount + redCount) > 0 ? (greenCount / (greenCount + redCount)) * 100 : null;
+
+      // Time in the gym this week, from workouts whose date falls Mon-Sun.
+      const weekIsoSet = new Set(weekDates.map(isoDate));
+      let weeklyMinutes = 0;
+      workouts.forEach(w => {
+        if(!w.start_time || !w.end_time) return;
+        if(!weekIsoSet.has(isoDate(new Date(w.start_time)))) return;
+        const mins = (new Date(w.end_time) - new Date(w.start_time)) / 60000;
+        if(mins > 0) weeklyMinutes += mins;
+      });
+      stats.weeklyMinutes = weeklyMinutes;
+
+      renderStatsPanel();
     }
 
     // ── Stats panel (weekly/monthly consistency + weekly time) ───────
@@ -563,37 +583,6 @@
       renderStatsPanel();
     }
 
-    async function loadMonthlyCalendar(){
-      const key = loadHevyKey();
-      const calEl = document.getElementById('monthlyCal');
-      if(!key){
-        calEl.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Connect Hevy to see this.</p>';
-        return;
-      }
-      calEl.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Loading…</p>';
-
-      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      try {
-        const res = await fetch('/api/hevy', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ apiKey: key, since: isoDate(firstOfMonth) })
-        });
-        const data = await res.json();
-        if(!res.ok) throw new Error(data.error || ('Request failed: '+res.status));
-
-        const completed = new Set();
-        (data.workouts || []).forEach(w => {
-          const raw = w.start_time || w.created_at;
-          if(!raw) return;
-          completed.add(isoDate(new Date(raw)));
-        });
-        renderMonthlyCalendar(completed);
-      } catch(e){
-        calEl.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Error: ${esc(e.message)}</p>`;
-      }
-    }
-
     // ── Muscle split (this month, by share of sets) ──────────────────
     function capitalize(s){ return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
@@ -614,35 +603,7 @@
         </div>`).join('');
     }
 
-    async function loadMuscleSplit(){
-      const key = loadHevyKey();
-      const el = document.getElementById('muscleChart');
-      if(!key){
-        el.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Connect Hevy to see this.</p>';
-        return;
-      }
-      el.innerHTML = '<p class="text-xs text-white/30 text-center py-6">Loading…</p>';
-
-      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      try {
-        const res = await fetch('/api/hevy-muscles', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ apiKey: key, since: isoDate(firstOfMonth) })
-        });
-        const data = await res.json();
-        if(!res.ok) throw new Error(data.error || ('Request failed: '+res.status));
-        renderMuscleChart(data.muscleGroups);
-      } catch(e){
-        el.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Error: ${esc(e.message)}</p>`;
-      }
-    }
-
-    function refreshAll(){
-      loadHevyWorkouts();
-      loadMonthlyCalendar();
-      loadMuscleSplit();
-    }
+    function refreshAll(){ loadHevy(); }
 
     function initHevyConnect(){
       const connectEl = document.getElementById('hevyConnect');

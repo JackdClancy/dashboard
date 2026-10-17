@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 
   <script>
     tailwind.config = {
@@ -325,9 +325,16 @@
       `${DAYS[now.getDay()]}, ${fmtDMY(now)}`;
 
     // ── Supabase ─────────────────────────────────────────────────
+    // Realtime fires once per changed row, so a bridge run touching 15 rows
+    // would trigger 15 full reloads back to back; coalesce each burst into one.
+    function debounce(fn, ms = 250) {
+      let t;
+      return () => { clearTimeout(t); t = setTimeout(fn, ms); };
+    }
     let supabaseClient = null;
     let listsCache = [];
     let itemsCache = [];
+    const reloadSoon = debounce(() => loadGroceries());
 
     async function initSupabase() {
       try {
@@ -338,8 +345,8 @@
         await loadGroceries();
         supabaseClient
           .channel('groceries-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'grocery_lists' }, () => loadGroceries())
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'grocery_items' }, () => loadGroceries())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'grocery_lists' }, reloadSoon)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'grocery_items' }, reloadSoon)
           .subscribe();
       } catch (e) {
         document.getElementById('commonList').innerHTML =
@@ -475,39 +482,27 @@
       `).join('');
     }
 
-    // ── Common list add ──────────────────────────────────────────
-    async function addCommonItem() {
-      const input = document.getElementById('commonItemInput');
+    // ── Add an item (common list, master list, or the open recipe) ──
+    // One helper for all three inputs: they differ only in which list and
+    // which text box.
+    async function addItem(list, inputId) {
+      const input = document.getElementById(inputId);
       const text = input.value.trim();
-      const common = listsCache.find(l => l.kind === 'common');
-      if (!text || !common || !supabaseClient) return;
-      const sort_order = itemsForList(common.id).length;
+      if (!text || !list || !supabaseClient) return;
+      const sort_order = itemsForList(list.id).length;
       const { error } = await supabaseClient.from('grocery_items')
-        .insert({ list_id: common.id, section: null, text, checked: false, sort_order });
+        .insert({ list_id: list.id, section: null, text, checked: false, sort_order });
       if (error) { console.error('Add item failed:', error); return; }
       input.value = '';
       await loadGroceries();
     }
-    document.getElementById('commonItemInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') addCommonItem();
-    });
-
-    // ── Master list add / add-to-common ─────────────────────────
-    async function addMasterItem() {
-      const input = document.getElementById('masterItemInput');
-      const text = input.value.trim();
-      const master = listsCache.find(l => l.kind === 'master');
-      if (!text || !master || !supabaseClient) return;
-      const sort_order = itemsForList(master.id).length;
-      const { error } = await supabaseClient.from('grocery_items')
-        .insert({ list_id: master.id, section: null, text, checked: false, sort_order });
-      if (error) { console.error('Add master item failed:', error); return; }
-      input.value = '';
-      await loadGroceries();
+    const listOfKind = kind => listsCache.find(l => l.kind === kind);
+    const addCommonItem = () => addItem(listOfKind('common'), 'commonItemInput');
+    const addMasterItem = () => addItem(listOfKind('master'), 'masterItemInput');
+    const addPanelItem  = () => addItem(listsCache.find(l => l.id === activeListId), 'panelItemInput');
+    for (const [id, fn] of [['commonItemInput', addCommonItem], ['masterItemInput', addMasterItem], ['panelItemInput', addPanelItem]]) {
+      document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') fn(); });
     }
-    document.getElementById('masterItemInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') addMasterItem();
-    });
 
     // Copies a master item into the common list. Skips if an item with the
     // same text (case/whitespace-insensitive) is already on the common list.
@@ -579,22 +574,6 @@
       document.getElementById('overlay').classList.remove('open');
       activeListId = null;
     }
-
-    async function addPanelItem() {
-      const input = document.getElementById('panelItemInput');
-      const text = input.value.trim();
-      const list = listsCache.find(l => l.id === activeListId);
-      if (!text || !list || !supabaseClient) return;
-      const sort_order = itemsForList(list.id).length;
-      const { error } = await supabaseClient.from('grocery_items')
-        .insert({ list_id: list.id, section: null, text, checked: false, sort_order });
-      if (error) { console.error('Add item failed:', error); return; }
-      input.value = '';
-      await loadGroceries();
-    }
-    document.getElementById('panelItemInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') addPanelItem();
-    });
 
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
 

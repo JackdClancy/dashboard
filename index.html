@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 
   <script>
     tailwind.config = {
@@ -378,6 +378,12 @@
     function esc(str) {
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+    // Links come from RSS feeds and vault notes — untrusted. esc() stops them
+    // breaking out of the attribute, but a `javascript:` URL is still valid
+    // inside one, so only plain web links become clickable.
+    function safeUrl(url) {
+      return /^https?:\/\//i.test(String(url || '')) ? url : null;
+    }
     function parseLocalDate(str) {
       const [y, m, d] = str.split('-').map(Number);
       return new Date(y, m - 1, d);
@@ -553,6 +559,12 @@
     }
 
     // ── Supabase (todos + goals, synced live) ────────────────────
+    // Realtime fires once per changed row, so a bridge run touching 15 rows
+    // would trigger 15 full reloads back to back; coalesce each burst into one.
+    function debounce(fn, ms = 250) {
+      let t;
+      return () => { clearTimeout(t); t = setTimeout(fn, ms); };
+    }
     let supabaseClient = null;
     let todosCache = [];
 
@@ -569,22 +581,22 @@
 
         supabaseClient
           .channel('todos-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => loadTodos())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, debounce(loadTodos))
           .subscribe();
 
         supabaseClient
           .channel('goals-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, () => loadHomeGoals())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, debounce(loadHomeGoals))
           .subscribe();
 
         supabaseClient
           .channel('projects-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => loadProjects())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, debounce(loadProjects))
           .subscribe();
 
         supabaseClient
           .channel('app-state-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state' }, () => loadAppState())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state' }, debounce(loadAppState))
           .subscribe();
       } catch (e) {
         el.innerHTML = `<p class="text-sm text-red-400 text-center py-6">Couldn't connect: ${esc(e.message)}</p>`;
@@ -722,7 +734,7 @@
       const chip = k => k === 'thought' ? 'bg-violet-500/15 text-violet-300'
                       : k === 'health'  ? 'bg-emerald-500/15 text-emerald-300'
                       :                   'bg-sky-500/15 text-sky-300';
-      el.innerHTML = items.map(i => `
+      el.innerHTML = items.map(i => ({ ...i, link: safeUrl(i.link) })).map(i => `
         ${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener"` : '<div'}
            class="block px-3 py-2 rounded-xl hover:bg-white/8 transition-colors">
           <div class="flex items-center justify-between gap-2">
@@ -769,7 +781,7 @@
       el.innerHTML = cats.map(c => `
         <div>
           <p class="text-[11px] uppercase tracking-wide text-white/35 px-3 mb-1">${esc(c.label)}</p>
-          ${c.items.map(i => `
+          ${c.items.map(i => ({ ...i, link: safeUrl(i.link) })).map(i => `
             ${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener"` : '<div'}
                class="block px-3 py-1.5 rounded-lg hover:bg-white/8 transition-colors">
               <span class="text-sm text-white/75 leading-snug">${esc(i.title)}</span>

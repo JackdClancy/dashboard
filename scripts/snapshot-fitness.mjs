@@ -13,9 +13,8 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { localDate } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
 
 const HEVY_API_KEY = process.env.HEVY_API_KEY;
 const APP_URL = process.env.APP_URL || 'https://jackdc.vercel.app';
@@ -27,19 +26,21 @@ if (!HEVY_API_KEY) {
   process.exit(0);
 }
 
-const since = new Date();
-since.setMonth(since.getMonth() - 2);
-since.setDate(1);
+// First of the month two months back, local midnight. (Built directly: the
+// old setMonth-then-setDate(1) rolled e.g. 30 Apr → "30 Feb" → 2 Mar → 1 Mar.)
+const now = new Date();
+const since = new Date(now.getFullYear(), now.getMonth() - 2, 1);
 
 const res = await fetch(`${APP_URL}/api/hevy`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ apiKey: HEVY_API_KEY, since: since.toISOString().slice(0, 10) }),
+  body: JSON.stringify({ apiKey: HEVY_API_KEY, since: since.toISOString() }),
 });
 if (!res.ok) throw new Error(`Hevy proxy → ${res.status}: ${await res.text()}`);
 const { workouts = [] } = await res.json();
 
-const fmtDate = iso => (iso || '').slice(0, 10);
+// Hevy timestamps are UTC: slicing them put a 7am NZ workout on the previous day.
+const fmtDate = iso => (iso ? localDate(iso) : '');
 const byMonth = new Map();
 for (const w of workouts) {
   const month = fmtDate(w.start_time || w.created_at).slice(0, 7);
@@ -49,7 +50,7 @@ for (const w of workouts) {
   m.volume += w.volume_kg || 0;
 }
 
-const today = new Date().toISOString().slice(0, 10);
+const today = localDate();
 const lines = [
   '---',
   'area: body',
@@ -63,7 +64,7 @@ const lines = [
   '# Workout log (Hevy snapshot)',
   '',
   `> Machine-written by \`~/dashboard/scripts/snapshot-fitness.mjs\` — do not hand-edit.`,
-  `> Last sync: ${new Date().toISOString()}. Window: since ${since.toISOString().slice(0, 10)}.`,
+  `> Last sync: ${new Date().toISOString()}. Window: since ${localDate(since)}.`,
   '',
   '## Monthly totals',
   '',

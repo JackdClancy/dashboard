@@ -13,6 +13,29 @@ The bridge between the vault and Supabase, built 2026-07-03 (spec §5). Zero-dep
 credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`, or install
 `scripts/com.jackdclancy.life-os-bridge.plist` into `~/Library/LaunchAgents/` for every-15-min runs.
 
+**`bridge-lib.mjs` (added 2026-10-17)** holds the plumbing every Supabase-facing script shares:
+`.env` loading, `requireSupabase()`, `rest()` (PostgREST; POSTs return rows, empty bodies parse as
+null), `putAppState(key, data)` for the home tiles, `localDate()`/`todayLine()` and `CLAUDE_BIN`.
+Import from it rather than copying a helper into a new script — before it existed there were
+seven diverging `rest()` copies. Two rules it encodes, both learned from real bugs:
+
+- **Dates are local, never `toISOString().slice(0, 10)`.** NZ is UTC+12/13, so before midday
+  that gives yesterday. It put goals, captures and Hevy workouts on the wrong day and told the
+  triage model "Today is <yesterday> (<today's weekday>)". Use `localDate()`. When a browser
+  sends a date range to `/api/hevy`, send a local-midnight `toISOString()` timestamp, not a
+  bare `YYYY-MM-DD` (which the server reads as UTC midnight = 1pm NZ).
+- **Two-way syncs stamp new ids into the file immediately**, in a `finally`, via `stampLines()`
+  — which re-reads the file and swaps only the inserted lines, so it can't clobber an edit. Writing
+  ids only at the end meant any later error (even a failed 3rd insert) re-inserted every new line
+  next run, doubling it in both the app and the vault. Every other vault write goes through
+  `writeIfUnchanged()`, which refuses if Obsidian saved the file mid-run and leaves it for the next
+  run. Keep the read-time mtime separately for last-write-wins (`editedAt`) — the guard's mtime
+  moves forward after each write. `sync-groceries.mjs` isolates each file, so a `list.md` being
+  edited while Jack shops defers only that file. These paths were tested against a mock PostgREST
+  (failed insert mid-run, save mid-run) — re-test the same way after touching them, never by
+  pointing a sync at a scratch vault with the real `.sync-state-*.json`: an empty or partial file
+  reads as "Jack deleted everything" and deletes the rows.
+
 - `sync-goals.mjs` — **two-way** `~/JC AI Brain/04-goals/*.md` ↔ `goals` table. Shadow state in
   `scripts/.sync-state-goals.json` (gitignored); last-write-wins on conflicts (file mtime vs
   `updated_at`). New file → insert + uuid written back to frontmatter; `status: archived` → row
@@ -122,6 +145,9 @@ credentials in `.env` (gitignored). Run everything: `sh scripts/bridge-sync.sh`,
   resolve which existing event a natural-language edit/cancel refers to. `sync-captures.mjs`,
   `sync-mail.mjs`, and `calendar-manager.mjs` all import this instead of building their own
   AppleScript.
+  It also owns the bridge-events ledger writes (`appendLedgerEntry` / `updateLedgerEntry` /
+  `removeLedgerEntry`, added 2026-10-17) — `sync-captures.mjs` and `sync-mail.mjs` used to each
+  hand-roll them.
 - `sync-captures.mjs` — drains the `captures` queue (home page quick-add bar, plus the share-sheet
   entry points below). **Calendar intent (reworked 2026-07-20):** each capture is classified once
   by headless `claude -p` (`CAPTURE_TRIAGE_MODEL`, default haiku), given the next 45 days of
@@ -237,8 +263,14 @@ assume a `.on('postgres_changes', …)` subscription is working because the UI a
 an optimistic local re-render looks identical. `merchant_rules` isn't in the publication at all.
 `supabase/migrations/20260818010000_realtime_finances.sql` fixes both and is optional;
 `finances.js` refreshes on tab focus and a 30s timer regardless, which also covers a phone waking
-or a dropped socket. The app pages subscribe to Supabase Realtime, so
-bridge writes appear in the open app without reloads.
+or a dropped socket. Realtime does push `todos`, `goals`, `projects` and grocery changes; the
+pages debounce those handlers, because a bridge run fires one event per changed row.
+
+**`app_state` is world-readable** (public anon key, public policies), so never put anything in a
+tile payload you wouldn't publish: `sync-calendar.mjs` used to include `source: CALENDAR_ICS` —
+the iCloud public-share link, i.e. read access to the whole calendar — until 2026-10-17. Links
+rendered from feeds or vault notes go through `safeUrl()` (http/https only) as well as `esc()`,
+since `esc()` alone doesn't stop a `javascript:` href.
 
 ## Finance categorisation (reworked 2026-08-18)
 

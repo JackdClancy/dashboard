@@ -15,36 +15,13 @@
 
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
-import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { rest, requireSupabase, VAULT_DIR, writeIfUnchanged, stampLines } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const GROCERIES_DIR = process.env.VAULT_GROCERIES_DIR ||
-  join(homedir(), 'JC AI Brain', '07-body', '7.1-groceries');
+const GROCERIES_DIR = process.env.VAULT_GROCERIES_DIR || join(VAULT_DIR, '07-body', '7.1-groceries');
 const STATE_PATH = join(dirname(fileURLToPath(import.meta.url)), '.sync-state-groceries.json');
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
-
-async function rest(method, path, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: method === 'POST' ? 'return=representation' : 'return=minimal',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
-}
+requireSupabase();
 
 const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -139,10 +116,11 @@ const nextShadow = {};
 let inserted = 0, pushed = 0, pulled = 0, exported = 0, deletedRows = 0,
     removedLines = 0, conflicts = 0, unchanged = 0;
 
-for (const f of files) {
+async function syncFile(f, fileShadow, stamped) {
   const listId = f.list.id;
   const raw = readFileSync(f.path, 'utf8');
-  const mtime = statSync(f.path).mtimeMs;
+  const editedAt = statSync(f.path).mtimeMs;   // last-write-wins
+  let mtime = editedAt;                         // concurrent-edit guard
   const lines = raw.split('\n');
 
   let bodyStart = 0;
@@ -177,16 +155,28 @@ for (const f of files) {
   let fileDirty = false;
   let nextOrder = items.length;
 
-  // New items: lines without an id.
-  for (const item of items) {
-    if (item.id) continue;
-    const [row] = await rest('POST', 'grocery_items',
-      { list_id: listId, sort_order: item.order, ...item.row });
-    lines[item.lineIdx] = itemLine(row);
-    nextShadow[row.id] = rowKey(row);
-    fileDirty = true;
-    inserted++;
-    console.log(`+ inserted "${row.text}" (${f.name})`);
+  // New items: lines without an id. Their ids are stamped into the file
+  // straight away, even if a later insert fails — same reasoning as
+  // sync-tasks.mjs: an unstamped row gets inserted again next run.
+  const stamps = [];
+  try {
+    for (const item of items) {
+      if (item.id) continue;
+      const [row] = await rest('POST', 'grocery_items',
+        { list_id: listId, sort_order: item.order, ...item.row });
+      stamps.push({ from: lines[item.lineIdx], to: itemLine(row) });
+      lines[item.lineIdx] = itemLine(row);
+      stamped[row.id] = fileShadow[row.id] = rowKey(row);
+      inserted++;
+      console.log(`+ inserted "${row.text}" (${f.name})`);
+    }
+  } finally {
+    if (stamps.length) {
+      mtime = stampLines(f.path, stamps);
+      writeFileSync(STATE_PATH, JSON.stringify({ ...shadow, ...nextShadow, ...stamped }, null, 2));
+      // Saved in Obsidian mid-run → our copy is stale; refuse the final write.
+      if (readFileSync(f.path, 'utf8') !== lines.join('\n')) mtime = -1;
+    }
   }
 
   const allIds = new Set([...itemById.keys(), ...dbById.keys()]);
@@ -197,23 +187,23 @@ for (const f of files) {
 
     if (item && db) {
       const fKey = rowKey(item.row), dKey = rowKey(db);
-      if (fKey === dKey) { nextShadow[id] = fKey; unchanged++; continue; }
+      if (fKey === dKey) { fileShadow[id] = fKey; unchanged++; continue; }
       const fileChanged = fKey !== last, dbChanged = dKey !== last;
       let winner;
       if (fileChanged && !dbChanged) winner = 'file';
       else if (dbChanged && !fileChanged) winner = 'db';
       else {
-        winner = mtime > Date.parse(db.updated_at || db.created_at) ? 'file' : 'db';
+        winner = editedAt > Date.parse(db.updated_at || db.created_at) ? 'file' : 'db';
         conflicts++;
         console.log(`! conflict on "${db.text}" → ${winner === 'file' ? 'vault' : 'app'} wins`);
       }
       if (winner === 'file') {
         await rest('PATCH', `grocery_items?id=eq.${id}`, item.row);
-        nextShadow[id] = fKey; pushed++;
+        fileShadow[id] = fKey; pushed++;
         console.log(`→ pushed "${item.row.text}"`);
       } else {
         lines[item.lineIdx] = itemLine(db);
-        nextShadow[id] = dKey; fileDirty = true; pulled++;
+        fileShadow[id] = dKey; fileDirty = true; pulled++;
         console.log(`← pulled "${db.text}"`);
       }
       continue;
@@ -225,7 +215,7 @@ for (const f of files) {
         console.log(`✗ removed line "${item.row.text}" (deleted in app)`);
       } else {
         await rest('POST', 'grocery_items', { id, list_id: listId, sort_order: item.order, ...item.row });
-        nextShadow[id] = rowKey(item.row); inserted++;
+        fileShadow[id] = rowKey(item.row); inserted++;
         console.log(`+ re-inserted "${item.row.text}" (${id})`);
       }
       continue;
@@ -239,7 +229,7 @@ for (const f of files) {
         const key = db.section || null;
         if (!appendBySection.has(key)) appendBySection.set(key, []);
         appendBySection.get(key).push(itemLine({ ...db, sort_order: nextOrder++ }));
-        nextShadow[id] = rowKey(db); fileDirty = true; exported++;
+        fileShadow[id] = rowKey(db); fileDirty = true; exported++;
         console.log(`↓ appended "${db.text}" (${f.name})`);
       }
     }
@@ -267,12 +257,36 @@ for (const f of files) {
       out.push(...newLines, '');
     }
 
-    writeFileSync(f.path, out.join('\n'));
+    writeIfUnchanged(f.path, out.join('\n'), mtime);
   }
+}
+
+// Each file is its own unit: a list.md that keeps changing while Jack shops
+// shouldn't stop the recipe and master lists from syncing. A failed file's
+// results are discarded (except ids already stamped into it), so next run
+// redoes it from last run's shadow.
+const failed = [];
+for (const f of files) {
+  const fileShadow = {}, stamped = {};
+  try {
+    await syncFile(f, fileShadow, stamped);
+    Object.assign(nextShadow, fileShadow);
+  } catch (e) {
+    Object.assign(nextShadow, stamped);
+    failed.push(f.name);
+    console.log(`! ${f.name}: ${e.message.split('\n')[0]}`);
+  }
+}
+// If a file failed, carry forward last run's entries for anything not
+// re-decided (that file's items). Stale entries for rows that are gone are
+// harmless, and the next clean run prunes them.
+if (failed.length) {
+  for (const [id, key] of Object.entries(shadow)) if (!(id in nextShadow)) nextShadow[id] = key;
 }
 
 writeFileSync(STATE_PATH, JSON.stringify(nextShadow, null, 2));
 console.log(`sync-groceries: ${listsInserted} lists inserted, ${listsUpdated} lists updated, ` +
   `${listsDeleted} lists deleted, ${inserted} items inserted, ${pushed} pushed, ${pulled} pulled, ` +
   `${exported} appended, ${deletedRows} rows deleted, ${removedLines} lines removed, ` +
-  `${conflicts} conflicts, ${unchanged} unchanged`);
+  `${conflicts} conflicts, ${unchanged} unchanged`
+  + (failed.length ? ` — ${failed.join(', ')} left for next run` : ''));

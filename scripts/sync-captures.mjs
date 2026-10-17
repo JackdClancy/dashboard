@@ -28,52 +28,26 @@
 //        CALENDAR_NAME (Apple Calendar target, default "Personal"),
 //        CAPTURE_TRIAGE_MODEL (default haiku), CLAUDE_BIN (path to claude CLI)
 
-import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { rest, requireSupabase, VAULT_DIR, CLAUDE_BIN, localDate, todayLine } from './bridge-lib.mjs';
 import { VIDEO_URL_RE, fetchVideoContent, toMarkdown as videoMarkdown } from './fetch-video.mjs';
-import { readUpcomingEvents, addEvent, updateEvent, deleteEvent, findDuplicate } from './calendar-lib.mjs';
+import {
+  readUpcomingEvents, addEvent, updateEvent, deleteEvent, findDuplicate,
+  appendLedgerEntry, updateLedgerEntry, removeLedgerEntry,
+} from './calendar-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const VAULT_DIR = process.env.VAULT_DIR || join(homedir(), 'JC AI Brain');
 const RAW_DIR = join(VAULT_DIR, '00-inbox', 'raw');
-const EVENTS_PATH = join(VAULT_DIR, '09-calendar', '(AI) bridge-events.json');
 const CALENDAR_NAME = process.env.CALENDAR_NAME || 'Personal';
 const MODEL = process.env.CAPTURE_TRIAGE_MODEL || 'haiku';
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
-
-const CLAUDE_BIN = process.env.CLAUDE_BIN
-  || [join(homedir(), '.local/bin/claude'), '/usr/local/bin/claude', '/opt/homebrew/bin/claude']
-    .find(existsSync);
-
-async function rest(method, path, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
-}
+requireSupabase();
 
 // ── Calendar-intent classification (headless claude, one call per run) ──
 
 function classifyCaptures(rows, existingEvents) {
-  const today = new Date();
-  const prompt = `You are a calendar-and-capture triage assistant for Jack. Today is ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString('en-NZ', { weekday: 'long' })}), timezone Pacific/Auckland.
+  const prompt = `You are a calendar-and-capture triage assistant for Jack. ${todayLine()}
 
 Each row below is a short note Jack typed into a quick-capture bar. For each row, decide "calendar_action":
 - "add" — the note describes a NEW event with a parseable date. A bare date alone isn't enough — it needs a time or an obvious appointment word (appointment, meeting, dentist, doctor, flight, dinner, booking, etc). Set title/date/time for the new event.
@@ -100,43 +74,6 @@ ${JSON.stringify(rows.map(r => ({ id: r.id, content: r.content })), null, 1)}`;
   const json = out.match(/\[[\s\S]*\]/);
   if (!json) throw new Error(`no JSON array in claude output: ${out.slice(0, 200)}`);
   return JSON.parse(json[0]);
-}
-
-// ── Bridge-events ledger (vault-side cache so the dashboard tile updates
-//    immediately, ahead of the next static ICS re-export) ────────────────
-
-function loadLedger() {
-  return existsSync(EVENTS_PATH) ? JSON.parse(readFileSync(EVENTS_PATH, 'utf8')) : [];
-}
-function saveLedger(ledger) {
-  mkdirSync(join(VAULT_DIR, '09-calendar'), { recursive: true });
-  writeFileSync(EVENTS_PATH, JSON.stringify(ledger, null, 2));
-}
-function pushLedgerEntry(entry) {
-  const ledger = loadLedger();
-  ledger.push({ ...entry, created_at: new Date().toISOString() });
-  saveLedger(ledger);
-}
-// Matches by uid OR by the pre-update title+date — many ledger entries have
-// no uid at all (they predate uid-tracking, or were written by sync-mail.mjs
-// before an edit ever touched them), so uid alone misses them and the ledger
-// is left showing stale data indefinitely (observed directly: an event's
-// ledger copy stayed at its old time after the real event was corrected,
-// because match_uid — sourced from the ICS feed context — never matched the
-// ledger's own uid-less entry).
-function updateLedgerEntry({ uid, matchTitle, matchDate, changes }) {
-  const ledger = loadLedger();
-  const idx = ledger.findIndex(e => e.uid === uid || (e.title === matchTitle && e.date === matchDate));
-  if (idx === -1) return; // event predates this ledger (manual/ICS-only) — nothing to sync here
-  if (changes.title !== undefined) ledger[idx].title = changes.title;
-  if (changes.date !== undefined) ledger[idx].date = changes.date;
-  if (changes.time !== undefined) ledger[idx].time = changes.time;
-  saveLedger(ledger);
-}
-function removeLedgerEntry({ uid, matchTitle, matchDate }) {
-  const ledger = loadLedger();
-  const next = ledger.filter(e => !(e.uid === uid || (e.title === matchTitle && e.date === matchDate)));
-  if (next.length !== ledger.length) saveLedger(next);
 }
 
 // ── Drain the queue ───────────────────────────────────────────────
@@ -179,22 +116,31 @@ for (const row of rows) {
     const time = HHMM.test(v.time || '') ? v.time : null;
     const title = String(v.title || '').slice(0, 120).trim() || 'Event';
     const dup = findDuplicate({ title, date: v.date, candidates: existingEvents });
+    let written = !!dup;
     if (dup) {
       console.log(`⏭ skipped "${title}" ${v.date} — looks like a duplicate of existing "${dup.title}"`);
     } else {
       try {
         const { uid } = addEvent({ calendarName: CALENDAR_NAME, title, date: v.date, time });
-        pushLedgerEntry({ uid, title, date: v.date, time, captured: row.content });
+        written = true;
         existingEvents.push({ uid, title, date: v.date, time, allDay: !time });
         console.log(`📅 "${title}" → Apple Calendar (${CALENDAR_NAME}) ${v.date}${time ? ' ' + time : ''}`);
+        // The event exists now — a ledger hiccup only delays the tile until
+        // the iCloud feed catches up, so it mustn't send the capture to the inbox too.
+        try { appendLedgerEntry({ uid, title, date: v.date, time, captured: row.content }); }
+        catch (e) { console.log(`  ! ledger not updated: ${e.message.split('\n')[0]}`); }
       } catch (e) {
         console.log(`! Calendar.app write failed ("${title}"): ${e.message.split('\n')[0]}`);
         console.log('  If this is a permissions error, grant Calendar automation access when prompted.');
       }
     }
-    await rest('DELETE', `captures?id=eq.${row.id}`);
-    calendared++;
-    continue;
+    if (written) {
+      await rest('DELETE', `captures?id=eq.${row.id}`);
+      calendared++;
+      continue;
+    }
+    // Write failed — fall through to the inbox, as update/delete do below.
+    // Before this, a failed add deleted the capture and the note was lost.
   }
 
   if ((v.calendar_action === 'update' || v.calendar_action === 'delete') && validUids.has(v.match_uid)) {
@@ -244,7 +190,8 @@ for (const row of rows) {
   }
 
   const at = new Date(row.created_at);
-  const stamp = at.toISOString().slice(0, 16).replace('T', '-').replace(':', '');
+  // Local time, so the filename and `created:` match the day Jack captured it.
+  const stamp = `${localDate(at)}-${String(at.getHours()).padStart(2, '0')}${String(at.getMinutes()).padStart(2, '0')}`;
   const slug = row.content.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'capture';
   let path = join(RAW_DIR, `${stamp}-${slug}.md`);
   if (existsSync(path)) path = join(RAW_DIR, `${stamp}-${slug}-${row.id.slice(0, 8)}.md`);
@@ -255,7 +202,7 @@ for (const row of rows) {
     'area: inbox',
     'type: capture',
     'status: raw',
-    `created: ${at.toISOString().slice(0, 10)}`,
+    `created: ${localDate(at)}`,
     `source: ${row.source || 'app-quick-add'}`,
     'tags: [inbox]',
     '---',

@@ -12,24 +12,16 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { rest, requireSupabase, putAppState } from './bridge-lib.mjs';
 
-try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); } catch {}
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const CONFIG = JSON.parse(readFileSync(fileURLToPath(new URL('./news-sources.json', import.meta.url)), 'utf8'));
 
-if (!SUPABASE_URL || !ANON_KEY) {
-  console.error('Missing SUPABASE_URL / SUPABASE_ANON_KEY (set in .env or environment).');
-  process.exit(1);
-}
-
-const sbHeaders = { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' };
+requireSupabase();
 
 // Throttle: skip if the stored payload is fresh enough.
 if (!process.env.FORCE_NEWS) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state?key=eq.news&select=data`, { headers: sbHeaders });
-  const [existing] = res.ok ? await res.json() : [];
+  const [existing] = await rest('GET', 'app_state?key=eq.news&select=data').catch(() => []);
   const fetchedAt = existing?.data?.fetched_at ? Date.parse(existing.data.fetched_at) : 0;
   if (Date.now() - fetchedAt < (CONFIG.refresh_hours || 20) * 3600000) {
     console.log('fetch-news: still fresh — skipping (FORCE_NEWS=1 to override)');
@@ -59,7 +51,11 @@ function parseFeed(xml) {
     }
     const dateStr = (b.match(/<(?:pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/) || [])[1];
     const published = dateStr ? Date.parse(dateStr.trim()) : NaN;
-    if (title) items.push({ title, link: link ? decode(link) : null, published: isNaN(published) ? null : published });
+    // Feed content is untrusted: only plain web links reach the tile, so a
+    // `javascript:` link in a compromised feed can't run on the dashboard.
+    const href = link ? decode(link) : null;
+    const safeLink = href && /^https?:\/\//i.test(href) ? href : null;
+    if (title) items.push({ title, link: safeLink, published: isNaN(published) ? null : published });
   }
   return items;
 }
@@ -116,15 +112,6 @@ for (const cat of CONFIG.categories) {
   console.log(`  ${cat.label}: ${Math.min(items.length, cat.max || 5)} items`);
 }
 
-const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state`, {
-  method: 'POST',
-  headers: { ...sbHeaders, Prefer: 'resolution=merge-duplicates' },
-  body: JSON.stringify({
-    key: 'news',
-    data: { fetched_at: new Date().toISOString(), categories },
-    updated_at: new Date().toISOString(),
-  }),
-});
-if (!res.ok) throw new Error(`Upsert app_state → ${res.status}: ${await res.text()}`);
+await putAppState('news', { fetched_at: new Date().toISOString(), categories });
 
 console.log(`fetch-news: ${categories.reduce((n, c) => n + c.items.length, 0)} headlines → app_state`);

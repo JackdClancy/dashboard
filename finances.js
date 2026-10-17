@@ -53,7 +53,16 @@
 
   const state = loadState();
 
+  // A corrupt or blocked localStorage used to throw here and blank the whole
+  // page; fall back to the sample data instead (Akahu reloads the real list).
   function loadState() {
+    try { return readStoredState(); } catch (e) {
+      console.error('Stored finances state unreadable, starting fresh:', e);
+      return { transactions: sampleTx, savingsGoal: 5000, savingsCurrent: 1200 };
+    }
+  }
+
+  function readStoredState() {
     const raw = localStorage.getItem('finances_v2');
     if (raw) return JSON.parse(raw);
 
@@ -73,7 +82,10 @@
     return { transactions: sampleTx, savingsGoal: 5000, savingsCurrent: 1200 };
   }
 
-  function save() { localStorage.setItem('finances_v2', JSON.stringify(state)); }
+  function save() {
+    try { localStorage.setItem('finances_v2', JSON.stringify(state)); }
+    catch (e) { console.error('Could not save finances state:', e); }
+  }
 
   // merchant key -> {category, source, evidence}; akahu category name -> same
   const rules = { merchant: new Map(), akahuCategory: new Map() };
@@ -161,8 +173,10 @@
     const key = normaliseKey(merchantLabel);
     if (!key) return;
 
-    // Optimistic — realtime will confirm.
-    rules.merchant.set(key, { category, source: 'manual', evidence: 'Set by you' });
+    // Optimistic — realtime will confirm. Keep the old rule to roll back to.
+    const previous = rules.merchant.get(key);
+    const optimistic = { category, source: 'manual', evidence: 'Set by you' };
+    rules.merchant.set(key, optimistic);
     render();
 
     const { error } = await supabaseClient.from('merchant_rules').upsert({
@@ -172,6 +186,12 @@
     }, { onConflict: 'kind,key' });
 
     if (error) {
+      // Don't leave the page showing a correction that never saved.
+      // Only if nothing newer (a refresh during the await) replaced it since.
+      if (rules.merchant.get(key) === optimistic) {
+        if (previous) rules.merchant.set(key, previous); else rules.merchant.delete(key);
+      }
+      render();
       document.getElementById('rulesStatus').textContent = 'Could not save rule: ' + error.message;
       console.error(error);
     }
@@ -179,11 +199,15 @@
 
   // ── Akahu fetch ─────────────────────────────────────────────────
   function loadAkahuCreds() {
-    const raw = localStorage.getItem('akahu_creds');
-    return raw ? JSON.parse(raw) : { appId: '', userToken: '' };
+    try {
+      const raw = localStorage.getItem('akahu_creds');
+      if (raw) return JSON.parse(raw);
+    } catch (e) { console.error('Stored Akahu credentials unreadable:', e); }
+    return { appId: '', userToken: '' };
   }
   function saveAkahuCreds(appId, userToken) {
-    localStorage.setItem('akahu_creds', JSON.stringify({ appId, userToken }));
+    try { localStorage.setItem('akahu_creds', JSON.stringify({ appId, userToken })); }
+    catch (e) { console.error('Could not remember Akahu credentials:', e); }
   }
 
   // The browser can't call api.akahu.nz directly due to CORS, so the request
@@ -391,7 +415,7 @@
   function renderSavings() {
     document.getElementById('savingsGoal').value = state.savingsGoal;
     document.getElementById('savingsCurrent').value = state.savingsCurrent;
-    const pct = Math.min(100, (state.savingsCurrent / state.savingsGoal) * 100);
+    const pct = state.savingsGoal > 0 ? Math.min(100, (state.savingsCurrent / state.savingsGoal) * 100) : 0;
     document.getElementById('savingsBar').style.width = pct + '%';
     document.getElementById('savingsText').textContent =
       `${Math.round(pct)}% of ${money(state.savingsGoal)} saved`;
