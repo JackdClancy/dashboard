@@ -134,20 +134,20 @@
     .wp-head, .wp-body { display: grid; grid-template-columns: var(--wp-gutter) repeat(5, minmax(0, 1fr)); }
     .wp-head { border-bottom: 1px solid rgba(255,255,255,0.10); }
     .wp-day {
-      position: relative; padding: 0.55rem 0.75rem 0.65rem;
+      position: relative; padding: 0.35rem 0.75rem 0.4rem;
       border-left: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.75);
     }
-    .wp-dayname { display: block; font-size: 0.75rem; font-weight: 500; }
-    .wp-date { display: block; font-size: 1.35rem; font-weight: 700; line-height: 1.15; color: #fff; }
+    .wp-dayname { display: block; font-size: 0.7rem; font-weight: 500; }
+    .wp-date { display: block; font-size: 1.05rem; font-weight: 700; line-height: 1.15; color: #fff; }
     .wp-today .wp-dayname, .wp-today .wp-date { color: #409CFF; }
     .wp-add {
-      position: absolute; top: 0.5rem; right: 0.5rem; width: 22px; height: 22px;
+      position: absolute; top: 50%; right: 0.5rem; transform: translateY(-50%); width: 20px; height: 20px;
       display: flex; align-items: center; justify-content: center; border-radius: 999px;
       border: 1.5px solid rgba(255,255,255,0.55); color: rgba(255,255,255,0.75);
       transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
     }
     .wp-add:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.08); }
-    .wp-body { padding: 10px 0; }
+    .wp-body { padding: 8px 0; }
     .wp-gutter { position: relative; }
     .wp-time {
       position: absolute; right: 0.5rem; transform: translateY(-50%);
@@ -163,24 +163,26 @@
     .wp-layer { position: absolute; inset: 0; pointer-events: none; }
     .wp-event {
       position: absolute; pointer-events: auto; overflow: hidden; cursor: grab;
-      display: flex; flex-direction: column; gap: 1px; padding: 5px 8px;
-      border-radius: 6px; border-left: 5px solid #d24a4a; color: #fff;
-      background: #87313a; box-shadow: 0 2px 8px rgba(0,0,0,0.30);
-      transition: background 120ms ease, box-shadow 120ms ease;
+      display: flex; flex-direction: column; gap: 0; padding: 2px 7px;
+      border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); border-left: 4px solid #409CFF; color: #fff;
+      /* same navy as the sticky note (.postit) */
+      background: linear-gradient(180deg, #12305c 0%, #0a1f42 100%);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.30);
+      transition: filter 120ms ease, box-shadow 120ms ease;
     }
-    .wp-event:hover { background: #943641; }
-    .wp-selected { background: #a33a46; box-shadow: 0 0 0 1px rgba(255,140,140,0.75), 0 4px 16px rgba(210,74,74,0.35); }
+    .wp-event:hover { filter: brightness(1.15); }
+    .wp-selected { filter: brightness(1.25); box-shadow: 0 0 0 1px rgba(64,156,255,0.8), 0 4px 16px rgba(10,132,255,0.30); }
     .wp-moving { z-index: 5; opacity: 0.9; cursor: grabbing; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
-    .wp-ghost { background: rgba(135,49,58,0.45); border: 1px dashed rgba(255,140,140,0.75); border-left-width: 5px; border-left-style: solid; }
-    .wp-editing { z-index: 6; cursor: text; background: #943641; box-shadow: 0 0 0 1px rgba(255,140,140,0.9); }
+    .wp-ghost { background: rgba(18,48,92,0.55); border: 1px dashed rgba(64,156,255,0.75); border-left: 4px solid #409CFF; }
+    .wp-editing { z-index: 6; cursor: text; filter: brightness(1.2); box-shadow: 0 0 0 1px rgba(64,156,255,0.9); }
     .wp-ev-title {
-      font-size: 13px; font-weight: 700; line-height: 1.25; text-transform: uppercase; letter-spacing: 0.01em;
+      font-size: 12px; font-weight: 700; line-height: 1.35; text-transform: uppercase; letter-spacing: 0.01em;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .wp-ev-time { font-size: 10.5px; color: rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .wp-input {
       width: 100%; padding: 0; border: 0; outline: none; background: transparent;
-      color: #fff; font-size: 13px; font-weight: 700; text-transform: uppercase; -webkit-user-select: text; user-select: text;
+      color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; -webkit-user-select: text; user-select: text;
     }
     .wp-input::placeholder { color: rgba(255,255,255,0.45); }
     .wp-grip { position: absolute; left: 0; right: 0; height: 6px; cursor: ns-resize; }
@@ -201,10 +203,10 @@
     @media (max-width: 639px) {
       .wp { --wp-gutter: 2.6rem; }
       .wp-day { padding: 0.45rem 0.3rem 0.5rem; text-align: center; }
-      .wp-date { font-size: 1.05rem; }
+      .wp-date { font-size: 0.95rem; }
       .wp-add { display: none; }
       .wp-time { right: 0.3rem; font-size: 9.5px; }
-      .wp-event { padding: 3px 4px; border-left-width: 3px; }
+      .wp-event { padding: 1px 4px; border-left-width: 3px; }
       .wp-ev-title { font-size: 10.5px; white-space: normal; overflow-wrap: anywhere; }
     }
   </style>
@@ -636,7 +638,7 @@
     const WP_DAYS    = ['Mon','Tue','Wed','Thu','Fri'];
     const WP_START   = 16 * 60, WP_END = 22 * 60; // minutes since midnight
     const WP_STEP    = 30;                         // slot size + snap, minutes
-    const WP_SLOT_PX = 32;
+    const WP_SLOT_PX = 22;
     const WP_SLOTS   = (WP_END - WP_START) / WP_STEP;
     const WP_KEEP_DAYS = 84;                       // older events pruned on save
 
