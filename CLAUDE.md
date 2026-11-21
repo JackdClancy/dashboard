@@ -60,6 +60,17 @@ seven diverging `rest()` copies. Two rules it encodes, both learned from real bu
   text is already there), and any other `.md` file with frontmatter `type: recipe` becomes a
   recipe list named after the file, rendered as a tile. Deleting a recipe file deletes its list
   (cascades to its items); `common` and `master` are singleton lists and are never deleted.
+  **One exception to one-way (added 2026-11-21):** the "+" beside the Recipes heading inserts a
+  `grocery_lists` row (slug via the same `slugify()` as the bridge, name stripped of filename-illegal
+  characters), and the next run writes `<name>.md` (`type: recipe`) for it instead of deleting it.
+  The two cases are told apart by `scripts/.sync-state-groceries-lists.json` — slugs that had a
+  file last run; a fileless recipe row whose slug is in it was deleted in Obsidian, one that isn't
+  was made in the app. With no state file, every existing row counts as known (the old
+  delete-only behaviour). The file is written with `wx`, so a same-named non-recipe note is never
+  overwritten (the row then just waits, logged each run). The name becomes a filename and the anon
+  key is public, so the script re-validates it rather than trusting the page: no path separators,
+  control characters or leading dot, resolved path directly inside the folder, and
+  `slugify(name) === slug` — otherwise the row is skipped and logged.
   **Items within a list are two-way**, like `sync-tasks.mjs`: checkbox lines carry an
   `<!-- id:… -->` comment once synced, checking a box in the app checks it in the vault file and
   vice versa, last-write-wins on conflicts (file mtime vs `updated_at`) — the `checked` state is

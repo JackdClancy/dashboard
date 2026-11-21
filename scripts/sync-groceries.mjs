@@ -4,7 +4,8 @@
 //   - LISTS are one-way vault → app (like sync-projects.mjs): `list.md` is always the
 //     'common' list; any other .md file with `type: recipe` frontmatter is a recipe
 //     list, named after the file. A recipe list disappears from the app when its file
-//     is deleted from the vault. The 'common' list is never deleted.
+//     is deleted from the vault. The 'common' list is never deleted. Exception: a recipe
+//     created with the app's "+" button gets its file written here on the next run.
 //   - ITEMS within a list are two-way (like sync-tasks.mjs): checkbox lines carry an
 //     `<!-- id:uuid -->` comment once synced; last-write-wins on conflicts (file mtime
 //     vs `updated_at`). Items are grouped by the nearest preceding `## Heading` into a
@@ -14,12 +15,15 @@
 // Env:   SUPABASE_URL, SUPABASE_ANON_KEY (.env), VAULT_GROCERIES_DIR (optional)
 
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
+import { join, dirname, basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { rest, requireSupabase, VAULT_DIR, writeIfUnchanged, stampLines } from './bridge-lib.mjs';
+import { rest, requireSupabase, VAULT_DIR, writeIfUnchanged, stampLines, localDate } from './bridge-lib.mjs';
 
 const GROCERIES_DIR = process.env.VAULT_GROCERIES_DIR || join(VAULT_DIR, '07-body', '7.1-groceries');
 const STATE_PATH = join(dirname(fileURLToPath(import.meta.url)), '.sync-state-groceries.json');
+// Recipe-list slugs that had a vault file last run — tells "file deleted" apart
+// from "list created in the app, file not written yet".
+const LISTS_STATE_PATH = join(dirname(fileURLToPath(import.meta.url)), '.sync-state-groceries-lists.json');
 
 requireSupabase();
 
@@ -100,14 +104,50 @@ for (const f of files) {
   }
 }
 
-// Vault is the sole author of which recipe lists exist; 'common' and 'master' are
-// singleton lists that are never deleted, even if their file briefly can't be read.
+// A recipe list with no file is either one Jack deleted in Obsidian (its slug had
+// a file on a previous run → delete the row) or one created with the app's "+"
+// button (never had a file → write one, so the vault stays the record from then
+// on). 'common' and 'master' are singleton lists that are never deleted, even if
+// their file briefly can't be read. With no lists state yet (first run after this
+// was added), every existing row counts as known — the old delete-only behaviour.
+const knownSlugs = new Set(existsSync(LISTS_STATE_PATH)
+  ? JSON.parse(readFileSync(LISTS_STATE_PATH, 'utf8'))
+  : dbLists.map(l => l.slug));
+let listsExported = 0;
 for (const l of dbLists) {
   if (l.kind === 'common' || l.kind === 'master' || seenSlugs.has(l.slug)) continue;
+  if (l.kind === 'recipe' && !knownSlugs.has(l.slug)) {
+    // The row's name becomes a filename and the anon key is public, so don't
+    // trust the page's sanitising: no separators, control chars or leading dot,
+    // and the resolved path must sit directly in the groceries folder.
+    const path = resolve(GROCERIES_DIR, `${l.name}.md`);
+    if (!l.name || /[\\/:*?"<>|#^\[\]\x00-\x1f]/.test(l.name) || l.name.startsWith('.') ||
+        dirname(path) !== resolve(GROCERIES_DIR)) {
+      console.log(`! list "${l.slug}" not exported: unsafe name`);
+      continue;
+    }
+    // The file's slug comes from its name; a mismatch would sync it as a second list.
+    if (slugify(l.name) !== l.slug) { console.log(`! list "${l.name}" not exported: slug doesn't match name`); continue; }
+    const today = localDate();
+    try {
+      // 'wx': never overwrite a note that happens to share the name.
+      writeFileSync(path, `---\narea: groceries\ntype: recipe\nstatus: active\ncreated: ${today}\n` +
+        `updated: ${today}\ntags: [groceries, recipe]\n---\n\n# ${l.name} — Ingredients\n\n`, { flag: 'wx' });
+    } catch (e) {
+      console.log(`! list "${l.name}" not exported: ${e.code === 'EEXIST' ? 'a non-recipe file has that name' : e.message}`);
+      continue;
+    }
+    files.push({ path, ...classify(path), list: l });
+    seenSlugs.add(l.slug);
+    listsExported++;
+    console.log(`↓ list "${l.name}" exported to vault (created in app)`);
+    continue;
+  }
   await rest('DELETE', `grocery_lists?id=eq.${l.id}`); // cascades to grocery_items
   listsDeleted++;
   console.log(`- list "${l.name}" deleted (no file for slug "${l.slug}")`);
 }
+writeFileSync(LISTS_STATE_PATH, JSON.stringify([...seenSlugs].sort(), null, 2));
 
 // ── Per-file item sync ───────────────────────────────────────────────
 
@@ -286,7 +326,7 @@ if (failed.length) {
 
 writeFileSync(STATE_PATH, JSON.stringify(nextShadow, null, 2));
 console.log(`sync-groceries: ${listsInserted} lists inserted, ${listsUpdated} lists updated, ` +
-  `${listsDeleted} lists deleted, ${inserted} items inserted, ${pushed} pushed, ${pulled} pulled, ` +
+  `${listsDeleted} lists deleted, ${listsExported} lists exported, ${inserted} items inserted, ${pushed} pushed, ${pulled} pulled, ` +
   `${exported} appended, ${deletedRows} rows deleted, ${removedLines} lines removed, ` +
   `${conflicts} conflicts, ${unchanged} unchanged`
   + (failed.length ? ` — ${failed.join(', ')} left for next run` : ''));

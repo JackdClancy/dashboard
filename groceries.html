@@ -235,6 +235,21 @@
         <div>
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest">Recipes</h2>
+            <button onclick="toggleNewRecipe()" aria-label="New recipe" title="New recipe"
+                    class="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/>
+              </svg>
+            </button>
+          </div>
+          <div id="newRecipeForm" class="hidden glass rounded-2xl p-4 mb-4">
+            <div class="flex gap-2">
+              <input id="newRecipeInput" type="text" placeholder="Recipe name…" maxlength="80"
+                     class="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
+              <button onclick="createRecipe()"
+                      class="px-3 py-2 bg-white/10 hover:bg-white/15 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Create</button>
+            </div>
+            <p id="newRecipeError" class="hidden text-xs text-red-400 mt-2"></p>
           </div>
           <div id="recipeTiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4"></div>
         </div>
@@ -429,7 +444,7 @@
       const recipes = listsCache.filter(l => l.kind === 'recipe').sort((a, b) => a.name.localeCompare(b.name));
       if (!recipes.length) {
         el.innerHTML = `<p class="text-sm text-white/30 py-8 sm:col-span-2 xl:col-span-2">
-          Add a recipe page to <span class="font-mono text-white/40">7.1-groceries</span> in Obsidian to see it here.</p>`;
+          Tap + to add a recipe, or add a recipe page to <span class="font-mono text-white/40">7.1-groceries</span> in Obsidian.</p>`;
         return;
       }
       el.innerHTML = recipes.map(r => {
@@ -520,6 +535,44 @@
       if (error) { console.error('Add to common failed:', error); return; }
       await loadGroceries();
     }
+
+    // ── New recipe ───────────────────────────────────────────────
+    // Inserts the list row; sync-groceries.mjs writes the matching vault file
+    // ("<name>.md", type: recipe) on its next run. The name becomes a filename,
+    // so characters a filename can't hold are stripped, and the slug must match
+    // the bridge's slugify() or the sync would treat the file as a new list.
+    const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    function toggleNewRecipe(show) {
+      const form = document.getElementById('newRecipeForm');
+      const open = show ?? form.classList.contains('hidden');
+      form.classList.toggle('hidden', !open);
+      document.getElementById('newRecipeError').classList.add('hidden');
+      if (open) document.getElementById('newRecipeInput').focus();
+    }
+
+    async function createRecipe() {
+      const input = document.getElementById('newRecipeInput');
+      const errEl = document.getElementById('newRecipeError');
+      const showError = msg => { errEl.textContent = msg; errEl.classList.remove('hidden'); };
+      const name = input.value.replace(/[\\/:*?"<>|#^\[\]]/g, '').replace(/\s+/g, ' ').trim().replace(/^\.+/, '');
+      const slug = slugify(name);
+      if (!name || !slug || !supabaseClient) { showError('Give the recipe a name with some letters or numbers.'); return; }
+      if (['common', 'master'].includes(slug) || listsCache.some(l => l.slug === slug)) {
+        showError('A list with that name already exists.'); return;
+      }
+      const { data, error } = await supabaseClient.from('grocery_lists')
+        .insert({ slug, name, kind: 'recipe' }).select().single();
+      if (error) { console.error('Create recipe failed:', error); showError("Couldn't create it — try again."); return; }
+      input.value = '';
+      toggleNewRecipe(false);
+      await loadGroceries();
+      openDetail(data.id);
+    }
+    document.getElementById('newRecipeInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') createRecipe();
+      if (e.key === 'Escape') { e.stopPropagation(); toggleNewRecipe(false); }
+    });
 
     // ── Item toggle / delete ────────────────────────────────────
     async function toggleItem(id, checked) {
