@@ -134,14 +134,14 @@
     .wp-head, .wp-body { display: grid; grid-template-columns: var(--wp-gutter) repeat(5, minmax(0, 1fr)); }
     .wp-head { border-bottom: 1px solid rgba(255,255,255,0.10); }
     .wp-day {
-      position: relative; padding: 0.35rem 0.75rem 0.4rem;
-      border-left: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.75);
+      position: relative; display: flex; align-items: baseline; gap: 0.35rem;
+      padding: 0.3rem 0.75rem; border-left: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.75);
     }
-    .wp-dayname { display: block; font-size: 0.7rem; font-weight: 500; }
-    .wp-date { display: block; font-size: 1.05rem; font-weight: 700; line-height: 1.15; color: #fff; }
+    .wp-dayname { font-size: 0.75rem; font-weight: 500; }
+    .wp-date { font-size: 0.85rem; font-weight: 700; line-height: 1.2; color: #fff; }
     .wp-today .wp-dayname, .wp-today .wp-date { color: #409CFF; }
     .wp-add {
-      position: absolute; top: 50%; right: 0.5rem; transform: translateY(-50%); width: 20px; height: 20px;
+      position: absolute; top: 50%; right: 0.5rem; transform: translateY(-50%); width: 18px; height: 18px;
       display: flex; align-items: center; justify-content: center; border-radius: 999px;
       border: 1.5px solid rgba(255,255,255,0.55); color: rgba(255,255,255,0.75);
       transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
@@ -202,8 +202,9 @@
 
     @media (max-width: 639px) {
       .wp { --wp-gutter: 2.6rem; }
-      .wp-day { padding: 0.45rem 0.3rem 0.5rem; text-align: center; }
-      .wp-date { font-size: 0.95rem; }
+      .wp-day { justify-content: center; gap: 0.25rem; padding: 0.3rem 0.2rem; }
+      .wp-dayname { font-size: 0.7rem; }
+      .wp-date { font-size: 0.75rem; }
       .wp-add { display: none; }
       .wp-time { right: 0.3rem; font-size: 9.5px; }
       .wp-event { padding: 1px 4px; border-left-width: 3px; }
@@ -354,10 +355,7 @@
       <!-- ── Weekly plan (after-work planner, app_state 'week_plan') ── -->
       <div class="glass rounded-3xl overflow-hidden max-sm:order-4">
         <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/10">
-          <div class="flex items-baseline gap-3 min-w-0">
-            <h2 class="text-sm font-semibold text-white/90 flex-shrink-0">Weekly Plan</h2>
-            <span class="text-[10px] text-white/30 truncate max-sm:hidden">drag to add · drag to move · click again to rename</span>
-          </div>
+          <h2 class="text-sm font-semibold text-white/90 flex-shrink-0">Weekly Plan</h2>
           <div class="flex items-center gap-2 flex-shrink-0">
             <span id="wpStatus" class="text-[10px] text-red-400"></span>
             <span id="wpRange" class="text-[11px] text-white/40 font-mono max-sm:hidden"></span>
