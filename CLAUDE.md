@@ -60,7 +60,8 @@ seven diverging `rest()` copies. Two rules it encodes, both learned from real bu
   text is already there), and any other `.md` file with frontmatter `type: recipe` becomes a
   recipe list named after the file, rendered as a tile. Each tile's "+" copies all its ingredients
   into the common list with the same skip-duplicates rule (`copyToCommon()`, shared with the
-  master "Add"). Deleting a recipe file deletes its list
+  master "Add"). The common list's "Clear" (two taps — the first arms it for 3s) deletes every
+  common item; the bridge then removes the lines from `list.md` via the normal deleted-in-app path. Deleting a recipe file deletes its list
   (cascades to its items); `common` and `master` are singleton lists and are never deleted.
   **One exception to one-way (added 2026-11-21):** the "+" beside the Recipes heading inserts a
   `grocery_lists` row (slug via the same `slugify()` as the bridge, name stripped of filename-illegal

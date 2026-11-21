@@ -226,6 +226,8 @@
                      class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary-400/60 focus:border-primary-400/40" />
               <button onclick="addCommonItem()"
                       class="px-3 py-2 bg-white/10 hover:bg-white/15 text-white/80 text-xs font-medium rounded-full transition-colors flex-shrink-0">Add</button>
+              <button id="clearCommonBtn" onclick="clearCommon()"
+                      class="px-3 py-2 bg-white/10 hover:bg-red-500/20 text-white/80 hover:text-red-300 text-xs font-medium rounded-full transition-colors flex-shrink-0">Clear</button>
             </div>
             <div id="commonList" class="space-y-2"></div>
           </div>
@@ -606,6 +608,28 @@
       if (e.key === 'Enter') createRecipe();
       if (e.key === 'Escape') { e.stopPropagation(); toggleNewRecipe(false); }
     });
+
+    // ── Clear the common list ────────────────────────────────────
+    // Two taps: the first arms the button ("Sure?") for 3s, the second deletes
+    // every item. The bridge then removes the lines from list.md.
+    let clearArmedTimer = null;
+    function setClearArmed(armed) {
+      const btn = document.getElementById('clearCommonBtn');
+      btn.textContent = armed ? 'Sure?' : 'Clear';
+      btn.classList.toggle('bg-red-500/25', armed);
+      btn.classList.toggle('text-red-300', armed);
+      clearTimeout(clearArmedTimer);
+      clearArmedTimer = armed ? setTimeout(() => setClearArmed(false), 3000) : null;
+    }
+    async function clearCommon() {
+      const common = listOfKind('common');
+      if (!common || !supabaseClient || !itemsForList(common.id).length) return;
+      if (!clearArmedTimer) { setClearArmed(true); return; }
+      setClearArmed(false);
+      const { error } = await supabaseClient.from('grocery_items').delete().eq('list_id', common.id);
+      if (error) { console.error('Clear common list failed:', error); return; }
+      await loadGroceries();
+    }
 
     // ── Item toggle / delete ────────────────────────────────────
     async function toggleItem(id, checked) {
