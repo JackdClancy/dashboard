@@ -128,6 +128,85 @@
     .postit textarea::placeholder { color: rgba(255,255,255,0.45); }
     .postit textarea::-webkit-scrollbar-track { background: transparent; }
     .postit textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); }
+
+    /* ── Weekly plan (Outlook-style after-work planner) ──────── */
+    .wp { --wp-gutter: 3.25rem; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    .wp-head, .wp-body { display: grid; grid-template-columns: var(--wp-gutter) repeat(5, minmax(0, 1fr)); }
+    .wp-head { border-bottom: 1px solid rgba(255,255,255,0.10); }
+    .wp-day {
+      position: relative; padding: 0.55rem 0.75rem 0.65rem;
+      border-left: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.75);
+    }
+    .wp-dayname { display: block; font-size: 0.75rem; font-weight: 500; }
+    .wp-date { display: block; font-size: 1.35rem; font-weight: 700; line-height: 1.15; color: #fff; }
+    .wp-today .wp-dayname, .wp-today .wp-date { color: #409CFF; }
+    .wp-add {
+      position: absolute; top: 0.5rem; right: 0.5rem; width: 22px; height: 22px;
+      display: flex; align-items: center; justify-content: center; border-radius: 999px;
+      border: 1.5px solid rgba(255,255,255,0.55); color: rgba(255,255,255,0.75);
+      transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+    }
+    .wp-add:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.08); }
+    .wp-body { padding: 10px 0; }
+    .wp-gutter { position: relative; }
+    .wp-time {
+      position: absolute; right: 0.5rem; transform: translateY(-50%);
+      font-size: 10.5px; color: rgba(255,255,255,0.55); white-space: nowrap;
+    }
+    .wp-now-label { color: #409CFF; font-weight: 600; }
+    .wp-col {
+      position: relative; border-left: 1px solid rgba(255,255,255,0.08); cursor: pointer;
+      box-shadow: inset 0 -1px rgba(255,255,255,0.10); /* closing 10pm line */
+    }
+    .wp-slot.wp-hour { border-top: 1px solid rgba(255,255,255,0.10); }
+    .wp-slot:hover { background: rgba(255,255,255,0.03); }
+    .wp-layer { position: absolute; inset: 0; pointer-events: none; }
+    .wp-event {
+      position: absolute; pointer-events: auto; overflow: hidden; cursor: grab;
+      display: flex; flex-direction: column; gap: 1px; padding: 5px 8px;
+      border-radius: 6px; border-left: 5px solid #d24a4a; color: #fff;
+      background: #87313a; box-shadow: 0 2px 8px rgba(0,0,0,0.30);
+      transition: background 120ms ease, box-shadow 120ms ease;
+    }
+    .wp-event:hover { background: #943641; }
+    .wp-selected { background: #a33a46; box-shadow: 0 0 0 1px rgba(255,140,140,0.75), 0 4px 16px rgba(210,74,74,0.35); }
+    .wp-moving { z-index: 5; opacity: 0.9; cursor: grabbing; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+    .wp-ghost { background: rgba(135,49,58,0.45); border: 1px dashed rgba(255,140,140,0.75); border-left-width: 5px; border-left-style: solid; }
+    .wp-editing { z-index: 6; cursor: text; background: #943641; box-shadow: 0 0 0 1px rgba(255,140,140,0.9); }
+    .wp-ev-title {
+      font-size: 13px; font-weight: 700; line-height: 1.25; text-transform: uppercase; letter-spacing: 0.01em;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .wp-ev-time { font-size: 10.5px; color: rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wp-input {
+      width: 100%; padding: 0; border: 0; outline: none; background: transparent;
+      color: #fff; font-size: 13px; font-weight: 700; text-transform: uppercase; -webkit-user-select: text; user-select: text;
+    }
+    .wp-input::placeholder { color: rgba(255,255,255,0.45); }
+    .wp-grip { position: absolute; left: 0; right: 0; height: 6px; cursor: ns-resize; }
+    .wp-grip-top { top: 0; }
+    .wp-grip-bottom { bottom: 0; }
+    @media (pointer: coarse) { .wp-grip { height: 10px; } }
+    .wp-del {
+      position: absolute; top: 2px; right: 2px; z-index: 2; width: 16px; height: 16px;
+      border-radius: 999px; background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.85);
+      font-size: 12px; line-height: 16px; text-align: center;
+    }
+    .wp-del:hover { background: rgba(239,68,68,0.85); }
+    .wp-now { position: absolute; left: 0; right: 0; z-index: 4; border-top: 1px solid rgba(64,156,255,0.75); pointer-events: none; }
+    .wp-now-today { border-top: 2px solid #0A84FF; }
+    .wp-now-today::before { content: ''; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: #0A84FF; }
+    .wp-dragging .wp-col { cursor: grabbing; }
+
+    @media (max-width: 639px) {
+      .wp { --wp-gutter: 2.6rem; }
+      .wp-day { padding: 0.45rem 0.3rem 0.5rem; text-align: center; }
+      .wp-date { font-size: 1.05rem; }
+      .wp-add { display: none; }
+      .wp-time { right: 0.3rem; font-size: 9.5px; }
+      .wp-event { padding: 3px 4px; border-left-width: 3px; }
+      .wp-ev-title { font-size: 10.5px; white-space: normal; overflow-wrap: anywhere; }
+    }
   </style>
   <link rel="stylesheet" href="theme.css" />
 </head>
@@ -268,6 +347,30 @@
 
         </div>
 
+      </div>
+
+      <!-- ── Weekly plan (after-work planner, app_state 'week_plan') ── -->
+      <div class="glass rounded-3xl overflow-hidden max-sm:order-4">
+        <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/10">
+          <div class="flex items-baseline gap-3 min-w-0">
+            <h2 class="text-sm font-semibold text-white/90 flex-shrink-0">Weekly Plan</h2>
+            <span class="text-[10px] text-white/30 truncate max-sm:hidden">drag to add · drag to move · click again to rename</span>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span id="wpStatus" class="text-[10px] text-red-400"></span>
+            <span id="wpRange" class="text-[11px] text-white/40 font-mono max-sm:hidden"></span>
+            <div class="flex items-center rounded-full bg-white/5 border border-white/10">
+              <button id="wpPrev" type="button" aria-label="Previous week" class="px-2 py-1 text-white/50 hover:text-white transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              <button id="wpToday" type="button" class="px-1.5 py-1 text-[11px] text-white/60 hover:text-white transition-colors">This week</button>
+              <button id="wpNext" type="button" aria-label="Next week" class="px-2 py-1 text-white/50 hover:text-white transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="weekPlan" class="wp"></div>
       </div>
 
       <!-- ── Workout plan ──────────────────────────────────────── -->
@@ -523,6 +626,428 @@
       }
     }
 
+    // ── Weekly plan (after-work planner, Mon–Fri 4–10pm) ─────────
+    // Outlook-style: drag down a day to select a range, type the activity,
+    // Enter saves (Esc cancels). Drag an event to move it (across days too),
+    // drag its top/bottom edge to resize, click to select (Delete removes),
+    // click again or double-click to rename. On touch, press and hold to drag
+    // so a normal swipe still scrolls the page. Stored as one app_state row
+    // (key 'week_plan') written only from here — the bridge never touches it.
+    const WP_DAYS    = ['Mon','Tue','Wed','Thu','Fri'];
+    const WP_START   = 16 * 60, WP_END = 22 * 60; // minutes since midnight
+    const WP_STEP    = 30;                         // slot size + snap, minutes
+    const WP_SLOT_PX = 32;
+    const WP_SLOTS   = (WP_END - WP_START) / WP_STEP;
+    const WP_KEEP_DAYS = 84;                       // older events pruned on save
+
+    const wpEl = document.getElementById('weekPlan');
+    let wpEvents = [];        // [{ id, date: 'YYYY-MM-DD', start: 'HH:MM', end: 'HH:MM', title }]
+    let wpWeekOffset = 0;
+    let wpSelected = null;    // event id
+    let wpEditing = null;     // event id whose title input is open
+    let wpEditText = '';
+    let wpDraft = null;       // new event being named, not yet in wpEvents
+    let wpDrag = null;
+    let wpRemote = null;      // a load that arrived mid-drag/edit, applied after
+    let wpSaving = 0;
+    let wpSaveChain = Promise.resolve();
+
+    const wpMin  = hhmm => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+    const wpHHMM = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+    const wpClamp = (m, lo, hi) => Math.min(hi, Math.max(lo, m));
+    const wpSnap  = m => Math.round(m / WP_STEP) * WP_STEP;
+    const wpFloor = m => Math.floor(m / WP_STEP) * WP_STEP;
+    const wpNewId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+    const wpColFor = date => wpEl.querySelector(`.wp-col[data-date="${date}"]`);
+
+    function wpValid(e) {
+      return e && typeof e.id === 'string' && typeof e.title === 'string'
+        && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && /^\d{2}:\d{2}$/.test(e.start) && /^\d{2}:\d{2}$/.test(e.end)
+        && wpMin(e.end) > wpMin(e.start);
+    }
+
+    function wpWeekDates() {
+      const mon = new Date(monday); mon.setDate(mon.getDate() + 7 * wpWeekOffset);
+      return WP_DAYS.map((_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d; });
+    }
+
+    function wpStatus(text) { document.getElementById('wpStatus').textContent = text; }
+
+    // Grid skeleton: rebuilt only when the week changes.
+    function renderWeekPlan() {
+      const dates = wpWeekDates();
+      document.getElementById('wpRange').textContent = `${fmtDMY(dates[0])} – ${fmtDMY(dates[4])}`;
+      document.getElementById('wpToday').classList.toggle('text-primary-400', wpWeekOffset === 0);
+      // Hour labels sit on the hour lines (including the closing 10pm line).
+      const labels = [];
+      for (let m = WP_START; m <= WP_END; m += 60) {
+        labels.push(`<span class="wp-time" style="top:${(m - WP_START) / WP_STEP * WP_SLOT_PX}px">${esc(fmtTime12(wpHHMM(m)))}</span>`);
+      }
+      const slots = Array.from({ length: WP_SLOTS }, (_, i) =>
+        `<div class="wp-slot ${(i * WP_STEP) % 60 === 0 ? 'wp-hour' : ''}" style="height:${WP_SLOT_PX}px"></div>`).join('');
+      wpEl.innerHTML = `
+        <div class="wp-head">
+          <div></div>
+          ${dates.map((d, i) => `<div class="wp-day ${isToday(d) ? 'wp-today' : ''}">
+            <span class="wp-dayname">${WP_DAYS[i]}</span><span class="wp-date">${d.getDate()}</span>
+            <button type="button" class="wp-add" data-add="${isoDate(d)}" aria-label="Add to ${WP_DAYS[i]}">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-width="3" d="M12 5v14M5 12h14" /></svg>
+            </button>
+          </div>`).join('')}
+        </div>
+        <div class="wp-body">
+          <div class="wp-gutter">${labels.join('')}<span class="wp-time wp-now-label" hidden></span></div>
+          ${dates.map(d => `<div class="wp-col" data-date="${isoDate(d)}">${slots}<div class="wp-layer"></div></div>`).join('')}
+        </div>`;
+      renderWpEvents();
+    }
+
+    // What's on screen: stored events, with the one being dragged shown at its
+    // preview position, plus the drag-to-create ghost and an unnamed draft.
+    function wpDisplayEvents() {
+      const list = wpEvents.map(e => (wpDrag?.active && wpDrag.id === e.id) ? { ...e, ...wpDrag.preview } : e);
+      if (wpDrag?.active && wpDrag.mode === 'create') list.push({ id: '__ghost', title: '', ghost: true, ...wpDrag.preview });
+      if (wpDraft) list.push(wpDraft);
+      return list;
+    }
+
+    // Overlapping events share the column width side by side, like Outlook.
+    function wpLayout(evs) {
+      const out = [];
+      let cluster = [], clusterEnd = -1;
+      const flush = () => {
+        const colEnds = [];
+        const placed = cluster.map(e => {
+          let c = colEnds.findIndex(end => end <= wpMin(e.start));
+          if (c < 0) { c = colEnds.length; colEnds.push(0); }
+          colEnds[c] = wpMin(e.end);
+          return { e, col: c };
+        });
+        placed.forEach(p => out.push({ ...p, n: colEnds.length }));
+        cluster = []; clusterEnd = -1;
+      };
+      [...evs].sort((a, b) => wpMin(a.start) - wpMin(b.start) || wpMin(b.end) - wpMin(a.end)).forEach(e => {
+        if (cluster.length && wpMin(e.start) >= clusterEnd) flush();
+        cluster.push(e);
+        clusterEnd = Math.max(clusterEnd, wpMin(e.end));
+      });
+      if (cluster.length) flush();
+      return out;
+    }
+
+    function wpEventHtml(e, col, n) {
+      const s = Math.max(wpMin(e.start), WP_START), en = Math.min(wpMin(e.end), WP_END);
+      const top = (s - WP_START) / WP_STEP * WP_SLOT_PX;
+      const h = (en - s) / WP_STEP * WP_SLOT_PX;
+      const editing = wpEditing === e.id;
+      const selected = wpSelected === e.id && !editing;
+      const moving = wpDrag?.active && wpDrag.id === e.id;
+      const time = `${fmtTime12(e.start)} – ${fmtTime12(e.end)}`;
+      const inner = editing
+        ? `<input class="wp-input" type="text" maxlength="120" placeholder="Activity…" value="${esc(wpEditText)}" aria-label="Activity, ${esc(time)}">`
+        : e.ghost ? `<span class="wp-ev-time">${esc(time)}</span>`
+        : `<span class="wp-ev-title">${esc(e.title)}</span>${h >= WP_SLOT_PX * 2 ? `<span class="wp-ev-time">${esc(time)}</span>` : ''}`;
+      const cls = ['wp-event', e.ghost && 'wp-ghost', selected && 'wp-selected', editing && 'wp-editing', moving && 'wp-moving'].filter(Boolean).join(' ');
+      return `<div class="${cls}" data-id="${esc(e.id)}" title="${esc(e.title ? `${e.title} · ${time}` : time)}"
+          style="top:${top + 1}px;height:${h - 2}px;left:calc(${col * 100 / n}% + 2px);width:calc(${100 / n}% - 4px)">
+        ${inner}
+        ${!editing && !e.ghost ? '<div class="wp-grip wp-grip-top" data-grip="top"></div><div class="wp-grip wp-grip-bottom" data-grip="bottom"></div>' : ''}
+        ${selected ? `<button type="button" class="wp-del" aria-label="Delete ${esc(e.title)}">×</button>` : ''}
+      </div>`;
+    }
+
+    function renderWpEvents() {
+      const all = wpDisplayEvents();
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const cols = [...wpEl.querySelectorAll('.wp-col')];
+      // Now-line runs across the whole week (brighter on today), with the
+      // time in the gutter — only while 4–10pm on the week being viewed.
+      const showNow = cols.some(c => c.dataset.date === isoDate(now)) && nowMin >= WP_START && nowMin <= WP_END;
+      const nowTop = (nowMin - WP_START) / WP_STEP * WP_SLOT_PX;
+      cols.forEach(col => {
+        const date = col.dataset.date;
+        let html = wpLayout(all.filter(e => e.date === date)).map(p => wpEventHtml(p.e, p.col, p.n)).join('');
+        if (showNow) html += `<div class="wp-now ${date === isoDate(now) ? 'wp-now-today' : ''}" style="top:${nowTop}px"></div>`;
+        col.querySelector('.wp-layer').innerHTML = html;
+      });
+      const nowLabel = wpEl.querySelector('.wp-now-label');
+      if (nowLabel) {
+        nowLabel.hidden = !showNow;
+        nowLabel.style.top = `${nowTop}px`;
+        nowLabel.textContent = fmtTime12(wpHHMM(nowMin));
+      }
+      const input = wpEl.querySelector('.wp-input');
+      if (input && document.activeElement !== input) {
+        input.focus({ preventScroll: true });
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    }
+
+    // ── Loading + saving ──
+    function renderWeekPlanData(plan) {
+      if (wpSaving) return; // our in-flight write is newer than this read
+      const events = (Array.isArray(plan?.events) ? plan.events : []).filter(wpValid);
+      if (wpDrag || wpEditing) { wpRemote = events; return; }
+      wpEvents = events;
+      renderWpEvents();
+    }
+    function wpFlushRemote() {
+      if (!wpRemote || wpDrag || wpEditing) return;
+      wpEvents = wpRemote; wpRemote = null;
+    }
+
+    async function loadWeekPlan() {
+      if (!supabaseClient) return;
+      const { data, error } = await supabaseClient.from('app_state').select('data').eq('key', 'week_plan').maybeSingle();
+      if (error) { console.error('Load week plan failed:', error); return; }
+      renderWeekPlanData(data?.data);
+    }
+
+    // Saves run one at a time and each sends the state as it is when it runs,
+    // so a quick move-then-rename can't land out of order.
+    function wpSave() {
+      wpSaving++;
+      wpSaveChain = wpSaveChain.then(wpSaveNow).finally(() => { wpSaving--; });
+    }
+    async function wpSaveNow() {
+      if (!supabaseClient) { wpStatus('Not connected — not saved'); return; }
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - WP_KEEP_DAYS);
+      wpEvents = wpEvents.filter(e => e.date >= isoDate(cutoff));
+      try {
+        const { error } = await supabaseClient
+          .from('app_state')
+          .upsert({ key: 'week_plan', data: { events: wpEvents }, updated_at: new Date().toISOString() },
+                  { onConflict: 'key' });
+        if (error) throw error;
+        wpStatus('');
+      } catch (e) {
+        console.error('Save week plan failed:', e);
+        wpStatus("Couldn't save");
+      }
+    }
+
+    // ── Editing ──
+    function wpStartDraft(range) {
+      wpDraft = { id: wpNewId(), title: '', ...range };
+      wpEditing = wpDraft.id; wpEditText = ''; wpSelected = null;
+      renderWpEvents();
+    }
+    function wpStartEdit(id) {
+      const ev = wpEvents.find(x => x.id === id);
+      if (!ev) return;
+      wpEditing = id; wpEditText = ev.title; wpSelected = null;
+      renderWpEvents();
+    }
+    function wpCommitEdit(cancel = false) {
+      if (!wpEditing) return;
+      const id = wpEditing, title = wpEditText.trim().slice(0, 120);
+      const draft = wpDraft?.id === id ? wpDraft : null;
+      wpEditing = null; wpDraft = null;
+      wpFlushRemote(); // apply any newer load first, then this change on top
+      if (!cancel && title) {
+        if (draft) {
+          wpEvents.push({ id: draft.id, date: draft.date, start: draft.start, end: draft.end, title });
+          wpSave();
+        } else {
+          const ev = wpEvents.find(x => x.id === id);
+          if (ev && ev.title !== title) { ev.title = title; wpSave(); }
+        }
+      }
+      renderWpEvents();
+    }
+    function wpDelete(id) {
+      wpEvents = wpEvents.filter(x => x.id !== id);
+      if (wpSelected === id) wpSelected = null;
+      wpSave();
+      renderWpEvents();
+    }
+
+    // ── Pointer: drag to create / move / resize ──
+    function wpColAt(x) {
+      return [...wpEl.querySelectorAll('.wp-col')].find(c => { const r = c.getBoundingClientRect(); return x >= r.left && x < r.right; });
+    }
+    function wpMinuteAt(col, y) {
+      return WP_START + (y - col.getBoundingClientRect().top) / WP_SLOT_PX * WP_STEP;
+    }
+
+    function wpActivate() {
+      const d = wpDrag;
+      if (!d || d.active) return;
+      clearTimeout(d.timer);
+      if (d.mode === 'create') {
+        d.preview = { date: d.date, start: wpHHMM(d.anchor), end: wpHHMM(d.anchor + WP_STEP) };
+      } else {
+        const ev = wpEvents.find(x => x.id === d.id);
+        if (!ev) { wpDrag = null; return; }
+        d.preview = { date: ev.date, start: ev.start, end: ev.end };
+        wpSelected = d.id;
+      }
+      d.active = true;
+      if (d.touch && navigator.vibrate) navigator.vibrate(8);
+      wpEl.classList.add('wp-dragging');
+      renderWpEvents();
+    }
+
+    function wpUpdatePreview(x, y) {
+      const d = wpDrag;
+      if (d.mode === 'create') {
+        const cur = wpClamp(wpFloor(wpMinuteAt(wpColFor(d.date), y)), WP_START, WP_END - WP_STEP);
+        d.preview = { date: d.date, start: wpHHMM(Math.min(d.anchor, cur)), end: wpHHMM(Math.max(d.anchor, cur) + WP_STEP) };
+        return;
+      }
+      const ev = wpEvents.find(x => x.id === d.id);
+      if (!ev) return;
+      let s = wpMin(ev.start), en = wpMin(ev.end);
+      const col = d.mode === 'move' ? (wpColAt(x) || wpColFor(d.preview.date)) : wpColFor(ev.date);
+      const m = wpMinuteAt(col, y);
+      if (d.mode === 'move') {
+        const dur = en - s;
+        s = wpClamp(wpSnap(m - d.grabOffset), WP_START, WP_END - dur); en = s + dur;
+      } else if (d.mode === 'resize-top') {
+        s = wpClamp(wpSnap(m), WP_START, en - WP_STEP);
+      } else {
+        en = wpClamp(wpSnap(m), s + WP_STEP, WP_END);
+      }
+      d.preview = { date: col.dataset.date, start: wpHHMM(s), end: wpHHMM(en) };
+    }
+
+    // A press that never became a drag: Outlook-style click handling.
+    function wpClick(d) {
+      if (d.wasEditing) return; // that click just closed the editor
+      if (d.mode === 'create') {
+        if (wpSelected) { wpSelected = null; renderWpEvents(); return; } // first click deselects
+        wpStartDraft({ date: d.date, start: wpHHMM(d.anchor), end: wpHHMM(d.anchor + WP_STEP) });
+        return;
+      }
+      if (wpSelected === d.id) { wpStartEdit(d.id); return; } // second click renames
+      wpSelected = d.id;
+      renderWpEvents();
+    }
+
+    function wpEndDrag() {
+      clearTimeout(wpDrag?.timer);
+      wpDrag = null;
+      wpEl.classList.remove('wp-dragging');
+    }
+
+    wpEl.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || e.target.closest('.wp-input, .wp-del')) return;
+      const col = e.target.closest('.wp-col');
+      if (!col) return;
+      const evEl = e.target.closest('.wp-event:not(.wp-ghost)');
+      const grip = e.target.closest('[data-grip]')?.dataset.grip;
+      const wasEditing = !!wpEditing;
+      if (wasEditing) wpCommitEdit();
+      const ev = evEl && wpEvents.find(x => x.id === evEl.dataset.id);
+      const m = wpMinuteAt(col, e.clientY);
+      wpDrag = {
+        pointerId: e.pointerId, touch: e.pointerType !== 'mouse',
+        x0: e.clientX, y0: e.clientY, active: false, wasEditing,
+        date: col.dataset.date,
+        mode: ev ? (grip ? `resize-${grip}` : 'move') : 'create',
+        id: ev?.id,
+        anchor: wpClamp(wpFloor(m), WP_START, WP_END - WP_STEP),
+        grabOffset: ev ? m - wpMin(ev.start) : 0,
+      };
+      try { wpEl.setPointerCapture(e.pointerId); } catch {}
+      // Touch: press-and-hold starts a drag, so an ordinary swipe still scrolls.
+      if (wpDrag.touch) wpDrag.timer = setTimeout(wpActivate, 350);
+    });
+
+    wpEl.addEventListener('pointermove', e => {
+      const d = wpDrag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      if (!d.active) {
+        const dist = Math.hypot(e.clientX - d.x0, e.clientY - d.y0);
+        if (d.touch) { if (dist > 8) wpEndDrag(); return; } // moved before the hold: it's a scroll
+        if (dist < 4) return;
+        wpActivate();
+        if (!wpDrag) return;
+      }
+      wpUpdatePreview(e.clientX, e.clientY);
+      renderWpEvents();
+    });
+
+    wpEl.addEventListener('pointerup', e => {
+      const d = wpDrag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      wpEndDrag();
+      if (!d.active) { wpClick(d); return; }
+      wpFlushRemote();
+      if (d.mode === 'create') { wpStartDraft(d.preview); return; }
+      const ev = wpEvents.find(x => x.id === d.id);
+      if (ev && (ev.date !== d.preview.date || ev.start !== d.preview.start || ev.end !== d.preview.end)) {
+        Object.assign(ev, d.preview);
+        wpSave();
+      }
+      renderWpEvents();
+    });
+
+    wpEl.addEventListener('pointercancel', () => {
+      if (!wpDrag) return;
+      const wasActive = wpDrag.active;
+      wpEndDrag();
+      wpFlushRemote();
+      if (wasActive) renderWpEvents();
+    });
+
+    // Once a touch drag is live, stop the page scrolling under the finger.
+    wpEl.addEventListener('touchmove', e => { if (wpDrag?.active) e.preventDefault(); }, { passive: false });
+    wpEl.addEventListener('contextmenu', e => { if (wpDrag) e.preventDefault(); });
+
+    wpEl.addEventListener('click', e => {
+      const del = e.target.closest('.wp-del');
+      if (del) { wpDelete(del.closest('.wp-event').dataset.id); return; }
+      const add = e.target.closest('.wp-add');
+      if (add) wpAddToDay(add.dataset.add);
+    });
+
+    // Day header "+": a 1-hour block in the first free hour from 4pm.
+    function wpAddToDay(date) {
+      if (wpEditing) wpCommitEdit();
+      const taken = wpEvents.filter(e => e.date === date);
+      let start = WP_START;
+      while (start + 60 <= WP_END && taken.some(e => wpMin(e.start) < start + 60 && wpMin(e.end) > start)) start += 60;
+      if (start + 60 > WP_END) start = WP_START; // day's full: overlap at 4pm
+      wpStartDraft({ date, start: wpHHMM(start), end: wpHHMM(start + 60) });
+    }
+
+    // Title input: Enter saves, Esc cancels, clicking away saves.
+    wpEl.addEventListener('input', e => { if (e.target.matches('.wp-input')) wpEditText = e.target.value; });
+    wpEl.addEventListener('keydown', e => {
+      if (!e.target.matches('.wp-input')) return;
+      if (e.key === 'Enter') { e.preventDefault(); wpCommitEdit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); wpCommitEdit(true); }
+    });
+    wpEl.addEventListener('focusout', e => { if (e.target.matches('.wp-input')) wpCommitEdit(); });
+
+    // Selected event: Delete/Backspace removes, Enter renames, Esc deselects.
+    document.addEventListener('keydown', e => {
+      if (!wpSelected || wpEditing || e.target.matches('input, textarea, [contenteditable]')) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); wpDelete(wpSelected); }
+      else if (e.key === 'Enter') { e.preventDefault(); wpStartEdit(wpSelected); }
+      else if (e.key === 'Escape') { wpSelected = null; renderWpEvents(); }
+    });
+    document.addEventListener('pointerdown', e => {
+      if (wpSelected && !wpEl.contains(e.target)) { wpSelected = null; renderWpEvents(); }
+    });
+
+    function wpGoWeek(offset) {
+      if (wpEditing) wpCommitEdit();
+      wpSelected = null;
+      wpWeekOffset = offset;
+      renderWeekPlan();
+    }
+    document.getElementById('wpPrev').addEventListener('click', () => wpGoWeek(wpWeekOffset - 1));
+    document.getElementById('wpNext').addEventListener('click', () => wpGoWeek(wpWeekOffset + 1));
+    document.getElementById('wpToday').addEventListener('click', () => wpGoWeek(0));
+
+    // app_state UPDATEs never arrive over Realtime (see CLAUDE.md), so pick up
+    // edits from another device when the tab comes back into view.
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadWeekPlan(); });
+    setInterval(() => { if (!wpDrag && !wpEditing) renderWpEvents(); }, 60000); // keep the now-line moving
+
     function renderGoalColumn(elId, goals, label) {
       const el = document.getElementById(elId);
       if (!goals.length) {
@@ -661,7 +1186,7 @@
       const { data, error } = await supabaseClient
         .from('app_state')
         .select('key, data')
-        .in('key', ['calendar', 'news', 'consumed', 'mail', 'scratchpad']);
+        .in('key', ['calendar', 'news', 'consumed', 'mail', 'scratchpad', 'week_plan']);
       if (error) { console.error('Load app_state failed:', error); return; }
       const byKey = Object.fromEntries((data || []).map(r => [r.key, r.data]));
       renderCalendar(byKey.calendar);
@@ -669,6 +1194,7 @@
       renderConsumed(byKey.consumed);
       renderMail(byKey.mail);
       renderScratchpad(byKey.scratchpad);
+      renderWeekPlanData(byKey.week_plan);
     }
 
     // Sticky note: two-way. Never overwrite while Jack is typing (focus =
@@ -867,6 +1393,7 @@
       if (e.key === 'Enter') addTodo();
     });
 
+    renderWeekPlan();
     initSupabase();
     loadHomeWorkouts();
   </script>

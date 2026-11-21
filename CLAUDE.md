@@ -322,6 +322,18 @@ one) render `.no-budget`: a muted grey bar sized relative to the largest categor
 budget" so it doesn't imply a target exists. Note that weekly view looks alarming for lumpy
 categories — rent lands in one week and blows a weekly rent budget by definition.
 
+## Weekly Plan tile (added 2026-11-21)
+
+Home page tile above Workout Plan: an Outlook-style Mon–Fri, 4pm–10pm planner for after-work
+evenings (`WP_*` constants in `index.html`; 30-min snap). Drag in a day to create and type the
+activity, drag a block to move it (across days), drag its edges to resize, click to select (Delete
+removes), click again to rename; touch needs a press-and-hold before dragging so swipes still scroll.
+**Stored as a single `app_state` row, key `week_plan`** (`{ events: [{ id, date, start, end, title }] }`,
+ISO date + 24-hour `HH:MM`), written only by the page — the bridge never touches it. Saves are
+serialised through a promise chain, and a load that lands mid-drag/edit is held until it finishes so
+it can't clobber the change. Since `app_state` UPDATEs never arrive over Realtime, it reloads on
+`visibilitychange`. Events older than `WP_KEEP_DAYS` (84) are pruned on save.
+
 ## Phone-only layout edits
 
 When asked to change the "phone"/"mobile" layout without affecting desktop:
