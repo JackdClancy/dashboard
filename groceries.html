@@ -459,7 +459,16 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
               </svg>
             </div>
-            <p class="text-xs text-white/40 mt-1.5">${checkedCount}/${items.length} item${items.length !== 1 ? 's' : ''}</p>
+            <div class="flex items-center justify-between gap-2 mt-1.5">
+              <p class="text-xs text-white/40">${recipeNotes[r.id] ? esc(recipeNotes[r.id]) : `${checkedCount}/${items.length} item${items.length !== 1 ? 's' : ''}`}</p>
+              <button onclick="event.stopPropagation(); addRecipeToCommon('${r.id}')"
+                      ${items.length ? '' : 'disabled'} title="Add all ingredients to the Common List" aria-label="Add all ingredients to the Common List"
+                      class="p-1 rounded-full bg-primary-500/15 hover:bg-primary-500/25 text-primary-300 transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 5v14M5 12h14"/>
+                </svg>
+              </button>
+            </div>
           </div>`;
       }).join('');
     }
@@ -519,21 +528,45 @@
       document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') fn(); });
     }
 
-    // Copies a master item into the common list. Skips if an item with the
-    // same text (case/whitespace-insensitive) is already on the common list.
-    async function addToCommon(masterItemId) {
-      const master = listsCache.find(l => l.kind === 'master');
-      const item = itemsCache.find(i => i.id === masterItemId);
-      const common = listsCache.find(l => l.kind === 'common');
-      if (!master || !item || !common || !supabaseClient) return;
+    // Copies items into the common list, skipping any whose text
+    // (case/whitespace-insensitive) is already there — including repeats within
+    // the batch. Returns how many were added, or null on failure.
+    async function copyToCommon(items) {
+      const common = listOfKind('common');
+      if (!common || !supabaseClient) return null;
       const norm = s => s.trim().toLowerCase();
-      const alreadyThere = itemsForList(common.id).some(i => norm(i.text) === norm(item.text));
-      if (alreadyThere) return;
-      const sort_order = itemsForList(common.id).length;
-      const { error } = await supabaseClient.from('grocery_items')
-        .insert({ list_id: common.id, section: null, text: item.text, checked: false, sort_order });
-      if (error) { console.error('Add to common failed:', error); return; }
+      const seen = new Set(itemsForList(common.id).map(i => norm(i.text)));
+      let sort_order = itemsForList(common.id).length;
+      const rows = [];
+      for (const item of items) {
+        if (seen.has(norm(item.text))) continue;
+        seen.add(norm(item.text));
+        rows.push({ list_id: common.id, section: null, text: item.text, checked: false, sort_order: sort_order++ });
+      }
+      if (!rows.length) return 0;
+      const { error } = await supabaseClient.from('grocery_items').insert(rows);
+      if (error) { console.error('Add to common failed:', error); return null; }
       await loadGroceries();
+      return rows.length;
+    }
+
+    async function addToCommon(masterItemId) {
+      const item = itemsCache.find(i => i.id === masterItemId);
+      if (item) await copyToCommon([item]);
+    }
+
+    // The "+" on a recipe tile: every ingredient goes onto the common list. The
+    // tile briefly says what happened in place of its item count.
+    const recipeNotes = {};
+    async function addRecipeToCommon(listId) {
+      const items = itemsForList(listId);
+      if (!items.length) return;
+      const added = await copyToCommon(items);
+      recipeNotes[listId] = added === null ? "Couldn't add — try again"
+        : added === 0 ? 'Already on the list'
+        : `Added ${added} to Common List`;
+      renderRecipeTiles();
+      setTimeout(() => { delete recipeNotes[listId]; renderRecipeTiles(); }, 2500);
     }
 
     // ── New recipe ───────────────────────────────────────────────
