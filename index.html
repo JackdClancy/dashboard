@@ -199,6 +199,21 @@
     .wp-now-today { border-top: 2px solid #0A84FF; }
     .wp-now-today::before { content: ''; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: #0A84FF; }
     .wp-dragging .wp-col { cursor: grabbing; }
+    /* Fri–Sun: one untimed sticky note per weekend instead of a time grid */
+    .wp-weekend { display: flex; padding: 3px 4px; border-left: 1px solid rgba(255,255,255,0.08); }
+    .wp-weekend-note {
+      flex: 1; min-height: 0; padding: 6px 8px; resize: none; outline: none;
+      border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); color: #fff; caret-color: #fff;
+      background: linear-gradient(180deg, #12305c 0%, #0a1f42 100%); /* same navy as .postit */
+      box-shadow: 0 4px 14px rgba(10,30,66,0.35), 0 2px 6px rgba(0,0,0,0.30);
+      transform: rotate(-0.4deg);
+      font-size: 12.5px; font-weight: 600; line-height: 1.45;
+      -webkit-user-select: text; user-select: text;
+    }
+    .wp-weekend-note:focus { box-shadow: 0 0 0 1px rgba(64,156,255,0.8), 0 4px 16px rgba(10,132,255,0.30); }
+    .wp-weekend-note::placeholder { color: rgba(255,255,255,0.45); }
+    .wp-weekend-note::-webkit-scrollbar-track { background: transparent; }
+    .wp-weekend-note::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); }
 
     @media (max-width: 639px) {
       .wp { --wp-gutter: 2.6rem; }
@@ -209,6 +224,9 @@
       .wp-time { right: 0.3rem; font-size: 9.5px; }
       .wp-event { padding: 1px 4px; border-left-width: 3px; }
       .wp-ev-title { font-size: 10.5px; white-space: normal; overflow-wrap: anywhere; }
+      .wp-weekend-head .wp-date { display: none; }
+      .wp-weekend { padding: 3px 2px; }
+      .wp-weekend-note { padding: 4px 5px; font-size: 10.5px; }
     }
   </style>
   <link rel="stylesheet" href="theme.css" />
@@ -633,7 +651,9 @@
     // click again or double-click to rename. On touch, press and hold to drag
     // so a normal swipe still scrolls the page. Stored as one app_state row
     // (key 'week_plan') written only from here — the bridge never touches it.
-    const WP_DAYS    = ['Mon','Tue','Wed','Thu','Fri'];
+    // Fri–Sun is a single free-text sticky note per weekend (no times),
+    // stored in the same row under weekends[<Friday's ISO date>].
+    const WP_DAYS    = ['Mon','Tue','Wed','Thu'];
     const WP_START   = 16 * 60, WP_END = 22 * 60; // minutes since midnight
     const WP_STEP    = 30;                         // slot size + snap, minutes
     const WP_SLOT_PX = 22;
@@ -642,6 +662,8 @@
 
     const wpEl = document.getElementById('weekPlan');
     let wpEvents = [];        // [{ id, date: 'YYYY-MM-DD', start: 'HH:MM', end: 'HH:MM', title }]
+    let wpWeekends = {};      // { 'YYYY-MM-DD' (Friday): text }
+    let wpWeekendTimer = null;
     let wpWeekOffset = 0;
     let wpSelected = null;    // event id
     let wpEditing = null;     // event id whose title input is open
@@ -670,13 +692,20 @@
       const mon = new Date(monday); mon.setDate(mon.getDate() + 7 * wpWeekOffset);
       return WP_DAYS.map((_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d; });
     }
+    function wpWeekendDates() {
+      const fri = new Date(monday); fri.setDate(fri.getDate() + 7 * wpWeekOffset + 4);
+      const sun = new Date(fri); sun.setDate(fri.getDate() + 2);
+      return { fri, sun };
+    }
 
     function wpStatus(text) { document.getElementById('wpStatus').textContent = text; }
 
     // Grid skeleton: rebuilt only when the week changes.
     function renderWeekPlan() {
       const dates = wpWeekDates();
-      document.getElementById('wpRange').textContent = `${fmtDMY(dates[0])} – ${fmtDMY(dates[4])}`;
+      const { fri, sun } = wpWeekendDates();
+      const weekendToday = [0, 1, 2].some(i => { const d = new Date(fri); d.setDate(fri.getDate() + i); return isToday(d); });
+      document.getElementById('wpRange').textContent = `${fmtDMY(dates[0])} – ${fmtDMY(sun)}`;
       document.getElementById('wpToday').classList.toggle('text-primary-400', wpWeekOffset === 0);
       // Hour labels sit on the hour lines (including the closing 10pm line).
       const labels = [];
@@ -694,12 +723,26 @@
               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-width="3" d="M12 5v14M5 12h14" /></svg>
             </button>
           </div>`).join('')}
+          <div class="wp-day wp-weekend-head ${weekendToday ? 'wp-today' : ''}">
+            <span class="wp-dayname">Fri–Sun</span><span class="wp-date">${fri.getDate()}–${sun.getDate()}</span>
+          </div>
         </div>
         <div class="wp-body">
           <div class="wp-gutter">${labels.join('')}<span class="wp-time wp-now-label" hidden></span></div>
           ${dates.map(d => `<div class="wp-col" data-date="${isoDate(d)}">${slots}<div class="wp-layer"></div></div>`).join('')}
+          <div class="wp-weekend">
+            <textarea class="wp-weekend-note" data-fri="${isoDate(fri)}" placeholder="Weekend…" aria-label="Weekend plans, Friday to Sunday"></textarea>
+          </div>
         </div>`;
+      renderWpWeekend();
       renderWpEvents();
+    }
+
+    // Never overwrite the note while it's being typed in (local copy wins).
+    function renderWpWeekend() {
+      const note = wpEl.querySelector('.wp-weekend-note');
+      if (!note || document.activeElement === note) return;
+      note.value = wpWeekends[note.dataset.fri] || '';
     }
 
     // What's on screen: stored events, with the one being dragged shown at its
@@ -787,6 +830,14 @@
     // ── Loading + saving ──
     function renderWeekPlanData(plan) {
       if (wpSaving) return; // our in-flight write is newer than this read
+      const weekends = {};
+      for (const [k, v] of Object.entries(plan?.weekends || {})) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(k) && typeof v === 'string') weekends[k] = v;
+      }
+      const note = wpEl.querySelector('.wp-weekend-note');
+      if (note && document.activeElement === note) weekends[note.dataset.fri] = note.value;
+      wpWeekends = weekends;
+      renderWpWeekend();
       const events = (Array.isArray(plan?.events) ? plan.events : []).filter(wpValid);
       if (wpDrag || wpEditing) { wpRemote = events; return; }
       wpEvents = events;
@@ -814,10 +865,11 @@
       if (!supabaseClient) { wpStatus('Not connected — not saved'); return; }
       const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - WP_KEEP_DAYS);
       wpEvents = wpEvents.filter(e => e.date >= isoDate(cutoff));
+      wpWeekends = Object.fromEntries(Object.entries(wpWeekends).filter(([k, v]) => k >= isoDate(cutoff) && v.trim()));
       try {
         const { error } = await supabaseClient
           .from('app_state')
-          .upsert({ key: 'week_plan', data: { events: wpEvents }, updated_at: new Date().toISOString() },
+          .upsert({ key: 'week_plan', data: { events: wpEvents, weekends: wpWeekends }, updated_at: new Date().toISOString() },
                   { onConflict: 'key' });
         if (error) throw error;
         wpStatus('');
@@ -1014,13 +1066,26 @@
     }
 
     // Title input: Enter saves, Esc cancels, clicking away saves.
-    wpEl.addEventListener('input', e => { if (e.target.matches('.wp-input')) wpEditText = e.target.value; });
+    wpEl.addEventListener('input', e => {
+      if (e.target.matches('.wp-input')) wpEditText = e.target.value;
+      if (e.target.matches('.wp-weekend-note')) {
+        wpWeekends[e.target.dataset.fri] = e.target.value;
+        clearTimeout(wpWeekendTimer);
+        wpWeekendTimer = setTimeout(() => { wpWeekendTimer = null; wpSave(); }, 600);
+      }
+    });
     wpEl.addEventListener('keydown', e => {
       if (!e.target.matches('.wp-input')) return;
       if (e.key === 'Enter') { e.preventDefault(); wpCommitEdit(); }
       else if (e.key === 'Escape') { e.preventDefault(); wpCommitEdit(true); }
     });
-    wpEl.addEventListener('focusout', e => { if (e.target.matches('.wp-input')) wpCommitEdit(); });
+    wpEl.addEventListener('focusout', e => {
+      if (e.target.matches('.wp-input')) wpCommitEdit();
+      if (e.target.matches('.wp-weekend-note') && wpWeekendTimer) {
+        clearTimeout(wpWeekendTimer); wpWeekendTimer = null;
+        wpSave();
+      }
+    });
 
     // Selected event: Delete/Backspace removes, Enter renames, Esc deselects.
     document.addEventListener('keydown', e => {
